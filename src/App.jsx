@@ -85,12 +85,12 @@ function sumS(team,holes,ms){return holes.reduce((s,h)=>s+(ms[h.hole]?.[team]||0
 function scoreStyle(score,par) {
   if(score==null)return{};
   const d=score-par;
-  const base={width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto",fontSize:13,fontWeight:700,color:"#1a1a1a"};
-  if(d<=-2)return{...base,borderRadius:"50%",border:"2px solid #555",boxShadow:"0 0 0 4px #fff, 0 0 0 6px #555"};
-  if(d===-1)return{...base,borderRadius:"50%",border:"2px solid #555"};
+  const base={width:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto",fontSize:12,fontWeight:700,color:"#1a1a1a",flexShrink:0};
+  if(d<=-2)return{...base,borderRadius:"50%",border:"1.5px solid #555",boxShadow:"0 0 0 3px #fff, 0 0 0 4.5px #555"};
+  if(d===-1)return{...base,borderRadius:"50%",border:"1.5px solid #555"};
   if(d===0)return{...base};
-  if(d===1)return{...base,border:"2px solid #555"};
-  return{...base,border:"2px solid #555",boxShadow:"0 0 0 3px #fff, 0 0 0 5px #555"};
+  if(d===1)return{...base,border:"1.5px solid #555"};
+  return{...base,border:"1.5px solid #555",boxShadow:"0 0 0 2px #fff, 0 0 0 3.5px #555"};
 }
 
 const pill = (type) => {
@@ -223,7 +223,7 @@ function ScoreCard({activeRound,match,teeIdx,scores,saveScore,onBack,setView}){
     setEditHole(null);
     setTimeout(()=>setSaved(null),800);
   }
-  const hdrBg="#f0ece6",subBg="#e8e2da",totBg="#ddd6cc",cellBg="#fff";
+  const hdrBg="#f0ece6",subBg="#e8e2da",totBg="#ddd6cc",cellBg="#fff",buzzBg="#fffcfa",owlsBg="#fafaf8";
   const sColor=stColor(mst);
   const f9out=sumS("home",f9,ms)||"—",f9outA=sumS("away",f9,ms)||"—";
   const b9in=sumS("home",b9,ms)||"—",b9inA=sumS("away",b9,ms)||"—";
@@ -280,7 +280,7 @@ function ScoreCard({activeRound,match,teeIdx,scores,saveScore,onBack,setView}){
             ))}
             <div style={cellBase(hdrBg,28,36,{fontSize:9,fontWeight:800,color:"#b83050"})}>Buzz</div>
             <div style={cellBase(hdrBg,28,36,{fontSize:9,fontWeight:800,color:"#9b7010"})}>Owls</div>
-            <div style={cellBase(hdrBg,22,40,{fontSize:7,fontWeight:800,color:"#555"})}>MP</div>
+            <div style={cellBase(hdrBg,22,40,{})}/>
           </div>
           {f9.map(h=>{
             const hs=ms[h.hole]||{};
