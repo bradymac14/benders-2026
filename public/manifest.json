@@ -1,0 +1,14 @@
+{
+  "name": "Benders 2026",
+  "short_name": "Benders",
+  "description": "Benders 2026 Golf Trip Scorer",
+  "theme_color": "#1a1a1a",
+  "background_color": "#1a1a1a",
+  "display": "standalone",
+  "orientation": "portrait",
+  "start_url": "/",
+  "icons": [
+    { "src": "/logo192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/logo512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
