@@ -859,22 +859,13 @@ export default function App(){
               {rdy&&(
                 <div onClick={()=>{setActiveMatch(m.id);setView("scorecard");}}>
                   <div style={{height:1,background:"#f0ece6",margin:"12px 0"}}/>
-                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                    <div style={{textAlign:"center",flex:1}}>
-                      <div style={{fontWeight:700,fontSize:13,color:"#b83050"}}>{hN}</div>
-                      <div style={{fontSize:10,color:"#999",margin:"2px 0"}}>vs</div>
-                      <div style={{fontWeight:700,fontSize:13,color:"#9b7010"}}>{aN}</div>
-                    </div>
-                    <div style={{textAlign:"right"}}>
-                      {mst.st!=="ns"&&<div style={{fontSize:12,fontWeight:600,color:sColor,marginBottom:4}}>{stLabel(mst,hN,aN)}</div>}
-                      {res&&<div style={{fontSize:11}}>
-                        <span style={{color:res.h>0?"#3a7a3a":"#ccc",fontWeight:700}}>{res.h}pt</span>
-                        <span style={{color:"#aaa"}}> – </span>
-                        <span style={{color:res.a>0?"#3a7a3a":"#ccc",fontWeight:700}}>{res.a}pt</span>
-                      </div>}
-                    </div>
-                  </div>
-                  <button style={{marginTop:12,width:"100%",padding:"10px 0",background:"none",border:"1.5px solid #1a1a1a",borderRadius:8,cursor:"pointer"}}>
+                  {mst.st!=="ns"&&<div style={{fontSize:12,fontWeight:600,color:sColor,marginTop:8,marginBottom:4}}>{stLabel(mst,hN,aN)}</div>}
+                  {res&&<div style={{fontSize:11,marginBottom:4}}>
+                    <span style={{color:res.h>0?"#3a7a3a":"#ccc",fontWeight:700}}>{res.h}pt</span>
+                    <span style={{color:"#aaa"}}> – </span>
+                    <span style={{color:res.a>0?"#3a7a3a":"#ccc",fontWeight:700}}>{res.a}pt</span>
+                  </div>}
+                  <button style={{marginTop:8,width:"100%",padding:"10px 0",background:"none",border:"1.5px solid #1a1a1a",borderRadius:8,cursor:"pointer"}}>
                     <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:16,letterSpacing:3,color:"#1a1a1a"}}>SCORECARD</span>
                   </button>
                 </div>
