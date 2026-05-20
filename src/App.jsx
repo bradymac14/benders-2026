@@ -502,20 +502,19 @@ export default function App(){
       }
     }
     return(
-      <div style={{fontFamily:"'DM Sans',sans-serif",background:"#1a1a1a",minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:20,padding:32,opacity:fading?0:1,transition:"opacity 0.4s"}}>
+      <div style={{fontFamily:"'DM Sans',sans-serif",background:"#1a1a1a",minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:20,padding:"32px 24px",opacity:fading?0:1,transition:"opacity 0.4s",boxSizing:"border-box",width:"100%",maxWidth:480,margin:"0 auto"}}>
         <img src={BENDERS_LOGO} width={120} height={120} style={{objectFit:"contain"}} alt="Benders Golf"/>
         <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:42,letterSpacing:6,color:"#fff",textAlign:"center",lineHeight:1}}>BENDERS</div>
         <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:42,letterSpacing:6,color:"#9b7010",textAlign:"center",lineHeight:1,marginTop:-16}}>2026</div>
         <div style={{fontSize:12,color:"#666",textAlign:"center"}}>Gamble Sands · June 12–14</div>
-        <div style={{width:"100%",maxWidth:300,display:"flex",flexDirection:"column",gap:10,marginTop:8}}>
+        <div style={{width:"100%",maxWidth:300,display:"flex",flexDirection:"column",gap:10,marginTop:8,alignSelf:"center"}}>
           <input type="text" placeholder="Password" value={pin}
             onChange={e=>setPin(e.target.value)}
             onKeyDown={e=>e.key==="Enter"&&tryPin(pin)}
             style={{width:"100%",padding:"14px 16px",fontSize:16,fontFamily:"'DM Sans',sans-serif",
               border:shake?"2px solid #b83050":"2px solid #333",borderRadius:12,
               background:"#2a2a2a",color:"#fff",outline:"none",textAlign:"center",
-              transform:shake?"translateX(6px)":"none",transition:"border-color 0.2s",
-              "::placeholder":{color:"#666"}}}
+              transform:shake?"translateX(6px)":"none",transition:"border-color 0.2s"}}
             autoCapitalize="none"/>
           <button onClick={()=>tryPin(pin)}
             style={{width:"100%",padding:14,background:"#b83050",border:"none",borderRadius:12,color:"#fff",fontFamily:"'Bebas Neue',sans-serif",fontSize:20,letterSpacing:3,cursor:"pointer"}}>
