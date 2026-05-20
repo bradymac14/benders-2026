@@ -32,9 +32,9 @@ const COURSES = { scarecrow: SCARECROW, sands: SANDS };
 const BGC = ["Brady","Bryce","Kevin","Kirby","Scott","Travis"];
 const OWL = ["Nick","Corey","Ryan","Neil","Michael","Tom"];
 const ROUNDS = [
-  { id:"r1", label:"Round 1", date:"Jun 12", fmt:"Hi/Lo Foursomes",    course:"scarecrow", slots:3, pps:2 },
-  { id:"r2", label:"Round 2", date:"Jun 13", fmt:"Best Ball (4-ball)", course:"sands",     slots:3, pps:2 },
-  { id:"r3", label:"Round 3", date:"Jun 14", fmt:"Singles Match Play", course:"scarecrow", slots:6, pps:1 },
+  { id:"r1", label:"Round 1", date:"Jun 12", fmt:"Hi/Lo Foursomes",    course:"scarecrow", slots:3, pps:2, hilo:true },
+  { id:"r2", label:"Round 2", date:"Jun 13", fmt:"Best Ball (4-ball)", course:"sands",     slots:3, pps:2, hilo:false },
+  { id:"r3", label:"Round 3", date:"Jun 14", fmt:"Singles Match Play", course:"scarecrow", slots:6, pps:1, hilo:false },
 ];
 
 function emptySlots(r){return Array.from({length:r.slots},(_,i)=>({id:r.id+"m"+(i+1),label:"Match "+(i+1),home:Array(r.pps).fill(""),away:Array(r.pps).fill("")}));}
@@ -63,11 +63,24 @@ function mResult(ms){
 }
 function totals(scores,byRound){
   let b=0,o=0;
-  for(const rm of Object.values(byRound)){for(const m of rm){const r=mResult(matchStatus(scores,m.id));if(r){b+=r.h;o+=r.a;}}}
+  for(const rDef of ROUNDS){
+    const rm=byRound[rDef.id];
+    if(rDef.hilo){
+      for(const m of rm){const mst=hiloMatchStatus(scores,m.id);b+=mst.bp||0;o+=mst.op||0;}
+    } else {
+      for(const m of rm){const r=mResult(matchStatus(scores,m.id));if(r){b+=r.h;o+=r.a;}}
+    }
+  }
   return{b,o};
 }
-function roundTotals(scores,matches){
-  let b=0,o=0;for(const m of matches){const r=mResult(matchStatus(scores,m.id));if(r){b+=r.h;o+=r.a;}}return{b,o};
+function roundTotals(scores,matches,hilo=false){
+  let b=0,o=0;
+  if(hilo){
+    for(const m of matches){const mst=hiloMatchStatus(scores,m.id);b+=mst.bp||0;o+=mst.op||0;}
+  } else {
+    for(const m of matches){const r=mResult(matchStatus(scores,m.id));if(r){b+=r.h;o+=r.a;}}
+  }
+  return{b,o};
 }
 function nl(arr){return arr.filter(Boolean).join(" / ")||"—";}
 function ready(m){return m.home.every(Boolean)&&m.away.every(Boolean);}
@@ -77,6 +90,47 @@ function holeMP(upTo,ms){
   const d=hw-aw;if(d===0)return"AS";return(d>0?"Buzz":"Owls")+" "+Math.abs(d)+"up";
 }
 function sumS(team,holes,ms){return holes.reduce((s,h)=>s+(ms[h.hole]?.[team]||0),0);}
+
+// Hi/Lo scoring: each hole worth 2 pts (1 low ball, 1 hi ball)
+// scores object for hilo: { hole: { h1, h2, a1, a2 } }
+function hiloHoleResult(hs) {
+  if (hs.h1==null||hs.h2==null||hs.a1==null||hs.a2==null) return null;
+  const buzzLow=Math.min(hs.h1,hs.h2), owlsLow=Math.min(hs.a1,hs.a2);
+  const buzzHi=Math.max(hs.h1,hs.h2), owlsHi=Math.max(hs.a1,hs.a2);
+  const lowPt = buzzLow<owlsLow?"buzz":buzzLow>owlsLow?"owls":"push";
+  const hiPt  = buzzHi>owlsHi?"buzz":buzzHi<owlsHi?"owls":"push";
+  return {lowPt, hiPt,
+    buzzPts:(lowPt==="buzz"?1:lowPt==="push"?0.5:0)+(hiPt==="buzz"?1:hiPt==="push"?0.5:0),
+    owlsPts:(lowPt==="owls"?1:lowPt==="push"?0.5:0)+(hiPt==="owls"?1:hiPt==="push"?0.5:0)};
+}
+function hiloMatchStatus(scores, mid) {
+  const ms=scores[mid]||{}; let bp=0,op=0,played=0;
+  for(let h=1;h<=18;h++){
+    const hs=ms[h];
+    if(!hs||hs.h1==null||hs.h2==null||hs.a1==null||hs.a2==null)break;
+    played++;
+    const r=hiloHoleResult(hs);
+    if(r){bp+=r.buzzPts;op+=r.owlsPts;}
+  }
+  const maxPts=18*2, remaining=(18-played)*2;
+  const lead=bp-op, leader=lead>0?"home":lead<0?"away":null;
+  if(played===0)return{st:"ns",played,bp,op,lead,leader};
+  if(played===18)return{st:"done",played,bp,op,lead,leader};
+  // clinched if lead > remaining
+  if(Math.abs(lead)>remaining)return{st:"done",played,bp,op,lead,leader};
+  return{st:"live",played,bp,op,lead,leader};
+}
+function hiloTotals(scores,byRound){
+  let b=0,o=0;
+  for(const r of ROUNDS){
+    if(!r.hilo)continue;
+    for(const m of byRound[r.id]){
+      const mst=hiloMatchStatus(scores,m.id);
+      b+=mst.bp||0; o+=mst.op||0;
+    }
+  }
+  return{b,o};
+}
 
 function scoreStyle(score,par){
   if(score==null)return{};
@@ -195,6 +249,218 @@ function MatchupPicker({match,matchIdx,roundId,pps,updateMatchup,allMatches}){
           })}
         </div>
       </div>
+    </div>
+  );
+}
+
+
+function HiLoScoreCard({activeRound,match,teeIdx,scores,saveScore,onBack,setView}){
+  const [editHole,setEditHole]=useState(null);
+  const [eH1,setEH1]=useState(""); const [eH2,setEH2]=useState("");
+  const [eA1,setEA1]=useState(""); const [eA2,setEA2]=useState("");
+  const [saved,setSaved]=useState(null);
+  const rDef=ROUNDS.find(r=>r.id===activeRound),course=COURSES[rDef.course],tee=course.tees[teeIdx];
+  const ms=scores[match.id]||{};
+  const hN1=match.home[0]||"P1",hN2=match.home[1]||"P2";
+  const aN1=match.away[0]||"P3",aN2=match.away[1]||"P4";
+  const f9=course.fp.map((par,i)=>({hole:i+1,par,yds:tee.f[i]}));
+  const b9=course.bp.map((par,i)=>({hole:i+10,par,yds:tee.b[i]}));
+  const all=[...f9,...b9];
+  const mst=hiloMatchStatus(scores,match.id);
+
+  // Running totals
+  const bar={hw:mst.bp||0, aw:mst.op||0};
+
+  function openHole(h){
+    const hs=ms[h]||{};
+    setEH1(hs.h1!=null?hs.h1:""); setEH2(hs.h2!=null?hs.h2:"");
+    setEA1(hs.a1!=null?hs.a1:""); setEA2(hs.a2!=null?hs.a2:"");
+    setEditHole(h);
+  }
+  function commit(){
+    const hole={
+      h1:eH1===""?null:parseInt(eH1), h2:eH2===""?null:parseInt(eH2),
+      a1:eA1===""?null:parseInt(eA1), a2:eA2===""?null:parseInt(eA2),
+    };
+    saveScore(match.id,editHole,hole);
+    setSaved(editHole); setEditHole(null);
+    setTimeout(()=>setSaved(null),800);
+  }
+
+  const hdrBg="#f0ece6",subBg="#e8e2da",totBg="#ddd6cc",cellBg="#fff";
+  const cb=(bg,h,w,extra={})=>({height:h,width:w,background:bg,display:"flex",alignItems:"center",justifyContent:"center",...extra});
+
+  function HoleResult({hole}){
+    const hs=ms[hole]||{};
+    const r=hiloHoleResult(hs);
+    if(!r)return<div style={cb(cellBg,20,44,{fontSize:7,color:"#ccc"})}>—</div>;
+    const lowColor=r.lowPt==="buzz"?"#b83050":r.lowPt==="owls"?"#9b7010":"#999";
+    const hiColor=r.hiPt==="buzz"?"#b83050":r.hiPt==="owls"?"#9b7010":"#999";
+    return(
+      <div style={cb(cellBg,20,44,{flexDirection:"row",gap:2})}>
+        <span style={{fontSize:7,fontWeight:700,color:lowColor}}>L</span>
+        <span style={{fontSize:7,color:"#ccc"}}>|</span>
+        <span style={{fontSize:7,fontWeight:700,color:hiColor}}>H</span>
+      </div>
+    );
+  }
+
+  const totalHoles=18, maxPts=totalHoles*2;
+  const bPct=Math.min(100,(bar.hw/maxPts)*100), aPct=Math.min(100,(bar.aw/maxPts)*100);
+
+  return(
+    <div style={{fontFamily:"'DM Sans',sans-serif",background:"#f5f0eb",color:"#1a1a1a",minHeight:"100vh",maxWidth:480,margin:"0 auto",paddingBottom:84}}>
+      <PHdr title="Scorecard" onBack={onBack}/>
+      <div style={{padding:"12px 16px",borderBottom:"1.5px solid #e8e0d8",textAlign:"center",background:"#fff"}}>
+        <div style={{fontSize:10,color:"#5a7a5a",textTransform:"uppercase",letterSpacing:1.5,fontWeight:700}}>{course.fullName} · Hi/Lo</div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:5,marginTop:4}}>
+          <div style={{width:10,height:10,borderRadius:"50%",background:tee.color,border:"1.5px solid #888",flexShrink:0}}/>
+          <span style={{fontSize:11,color:"#444",fontWeight:600}}>{tee.label} · {tee.total.toLocaleString()} yds · Par {course.par}</span>
+        </div>
+        <div style={{display:"flex",justifyContent:"center",gap:16,marginTop:8}}>
+          <div style={{textAlign:"center"}}>
+            <div style={{fontSize:10,color:"#b83050",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5}}>Buzzards</div>
+            <div style={{fontSize:12,color:"#333",fontWeight:600}}>{hN1} / {hN2}</div>
+          </div>
+          <div style={{fontSize:14,color:"#ccc",paddingTop:10}}>vs</div>
+          <div style={{textAlign:"center"}}>
+            <div style={{fontSize:10,color:"#9b7010",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5}}>Owls</div>
+            <div style={{fontSize:12,color:"#333",fontWeight:600}}>{aN1} / {aN2}</div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{background:"#fff",borderBottom:"1.5px solid #e8e0d8",padding:"12px 16px"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+          <span style={{fontSize:11,fontWeight:700,color:"#333"}}>Points</span>
+          <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:22,letterSpacing:1}}>
+            <span style={{color:"#b83050"}}>{bar.hw}</span>
+            <span style={{color:"#aaa"}}> – </span>
+            <span style={{color:"#9b7010"}}>{bar.aw}</span>
+          </span>
+          <span style={{fontSize:10,color:"#999"}}>{maxPts} total pts</span>
+        </div>
+        <div style={{height:8,background:"#f0ece6",borderRadius:4,display:"flex",overflow:"hidden"}}>
+          {bar.hw+bar.aw>0
+            ?<><div style={{height:"100%",background:"#b83050",width:((bar.hw/(bar.hw+bar.aw))*100)+"%"}}/><div style={{height:"100%",background:"#9b7010",width:((bar.aw/(bar.hw+bar.aw))*100)+"%"}}/></>
+            :<div style={{width:"100%",height:"100%",background:"#f0ece6"}}/>}
+        </div>
+      </div>
+
+      <div style={{overflowX:"auto",padding:"10px 6px"}}>
+        <div style={{display:"flex",gap:1,background:"#e0d8d0",borderRadius:10,overflow:"hidden",minWidth:"max-content"}}>
+          <div style={{display:"flex",flexDirection:"column"}}>
+            <div style={cb(hdrBg,24,36,{fontSize:9,fontWeight:800,color:"#555"})}>#</div>
+            <div style={cb(hdrBg,22,36,{fontSize:9,fontWeight:800,color:"#555"})}>Par</div>
+            <div style={cb(hdrBg,20,36,{fontSize:8,fontWeight:800,color:"#777"})}>Yds</div>
+            <div style={cb(hdrBg,30,36,{fontSize:8,fontWeight:800,color:"#b83050"})}>{hN1}</div>
+            <div style={cb(hdrBg,30,36,{fontSize:8,fontWeight:800,color:"#b83050"})}>{hN2}</div>
+            <div style={cb(hdrBg,30,36,{fontSize:8,fontWeight:800,color:"#9b7010"})}>{aN1}</div>
+            <div style={cb(hdrBg,30,36,{fontSize:8,fontWeight:800,color:"#9b7010"})}>{aN2}</div>
+            <div style={cb(hdrBg,20,44,{fontSize:7,fontWeight:800,color:"#555"})}>Lo|Hi</div>
+          </div>
+          {f9.map(h=>{
+            const hs=ms[h.hole]||{};
+            const isSaved=saved===h.hole;
+            const r=hiloHoleResult(hs);
+            const bgH=isSaved?"#e8f5e8":cellBg;
+            return(
+              <div key={h.hole} style={{display:"flex",flexDirection:"column"}} onClick={()=>openHole(h.hole)}>
+                <div style={cb(bgH,24,36,{fontSize:10,fontWeight:800,color:"#5a7a5a",cursor:"pointer"})}>{h.hole}</div>
+                <div style={cb(cellBg,22,36,{fontSize:10,color:"#555"})}>{h.par}</div>
+                <div style={cb(cellBg,20,36,{fontSize:9,color:"#666"})}>{h.yds}</div>
+                <div style={cb("#fffcfa",30,36,{fontSize:13,fontWeight:700,cursor:"pointer"})}>{hs.h1!=null?<div style={scoreStyle(hs.h1,h.par)}>{hs.h1}</div>:<span style={{color:"#ccc"}}>—</span>}</div>
+                <div style={cb("#fffcfa",30,36,{fontSize:13,fontWeight:700,cursor:"pointer"})}>{hs.h2!=null?<div style={scoreStyle(hs.h2,h.par)}>{hs.h2}</div>:<span style={{color:"#ccc"}}>—</span>}</div>
+                <div style={cb("#fafaf8",30,36,{fontSize:13,fontWeight:700,cursor:"pointer"})}>{hs.a1!=null?<div style={scoreStyle(hs.a1,h.par)}>{hs.a1}</div>:<span style={{color:"#ccc"}}>—</span>}</div>
+                <div style={cb("#fafaf8",30,36,{fontSize:13,fontWeight:700,cursor:"pointer"})}>{hs.a2!=null?<div style={scoreStyle(hs.a2,h.par)}>{hs.a2}</div>:<span style={{color:"#ccc"}}>—</span>}</div>
+                <HoleResult hole={h.hole}/>
+              </div>
+            );
+          })}
+          <div style={{display:"flex",flexDirection:"column"}}>
+            <div style={cb(subBg,24,36,{fontSize:9,fontWeight:800,color:"#5a7a5a"})}>OUT</div>
+            <div style={cb(subBg,22,36,{fontSize:9,fontWeight:700,color:"#555"})}>{f9.reduce((s,h)=>s+h.par,0)}</div>
+            <div style={cb(subBg,20,36,{fontSize:8,fontWeight:700,color:"#666"})}>{f9.reduce((s,h)=>s+h.yds,0)}</div>
+            <div style={cb(subBg,30,36,{fontSize:12,fontWeight:800})}>{f9.reduce((s,h)=>s+(ms[h.hole]?.h1||0),0)||"—"}</div>
+            <div style={cb(subBg,30,36,{fontSize:12,fontWeight:800})}>{f9.reduce((s,h)=>s+(ms[h.hole]?.h2||0),0)||"—"}</div>
+            <div style={cb(subBg,30,36,{fontSize:12,fontWeight:800})}>{f9.reduce((s,h)=>s+(ms[h.hole]?.a1||0),0)||"—"}</div>
+            <div style={cb(subBg,30,36,{fontSize:12,fontWeight:800})}>{f9.reduce((s,h)=>s+(ms[h.hole]?.a2||0),0)||"—"}</div>
+            <div style={cb(subBg,20,44,{})}/>
+          </div>
+          {b9.map(h=>{
+            const hs=ms[h.hole]||{};
+            const isSaved=saved===h.hole;
+            const bgH=isSaved?"#e8f5e8":cellBg;
+            return(
+              <div key={h.hole} style={{display:"flex",flexDirection:"column"}} onClick={()=>openHole(h.hole)}>
+                <div style={cb(bgH,24,36,{fontSize:10,fontWeight:800,color:"#5a7a5a",cursor:"pointer"})}>{h.hole}</div>
+                <div style={cb(cellBg,22,36,{fontSize:10,color:"#555"})}>{h.par}</div>
+                <div style={cb(cellBg,20,36,{fontSize:9,color:"#666"})}>{h.yds}</div>
+                <div style={cb("#fffcfa",30,36,{fontSize:13,fontWeight:700,cursor:"pointer"})}>{hs.h1!=null?<div style={scoreStyle(hs.h1,h.par)}>{hs.h1}</div>:<span style={{color:"#ccc"}}>—</span>}</div>
+                <div style={cb("#fffcfa",30,36,{fontSize:13,fontWeight:700,cursor:"pointer"})}>{hs.h2!=null?<div style={scoreStyle(hs.h2,h.par)}>{hs.h2}</div>:<span style={{color:"#ccc"}}>—</span>}</div>
+                <div style={cb("#fafaf8",30,36,{fontSize:13,fontWeight:700,cursor:"pointer"})}>{hs.a1!=null?<div style={scoreStyle(hs.a1,h.par)}>{hs.a1}</div>:<span style={{color:"#ccc"}}>—</span>}</div>
+                <div style={cb("#fafaf8",30,36,{fontSize:13,fontWeight:700,cursor:"pointer"})}>{hs.a2!=null?<div style={scoreStyle(hs.a2,h.par)}>{hs.a2}</div>:<span style={{color:"#ccc"}}>—</span>}</div>
+                <HoleResult hole={h.hole}/>
+              </div>
+            );
+          })}
+          <div style={{display:"flex",flexDirection:"column"}}>
+            <div style={cb(subBg,24,36,{fontSize:9,fontWeight:800,color:"#5a7a5a"})}>IN</div>
+            <div style={cb(subBg,22,36,{fontSize:9,fontWeight:700,color:"#555"})}>{b9.reduce((s,h)=>s+h.par,0)}</div>
+            <div style={cb(subBg,20,36,{fontSize:8,fontWeight:700,color:"#666"})}>{b9.reduce((s,h)=>s+h.yds,0)}</div>
+            <div style={cb(subBg,30,36,{fontSize:12,fontWeight:800})}>{b9.reduce((s,h)=>s+(ms[h.hole]?.h1||0),0)||"—"}</div>
+            <div style={cb(subBg,30,36,{fontSize:12,fontWeight:800})}>{b9.reduce((s,h)=>s+(ms[h.hole]?.h2||0),0)||"—"}</div>
+            <div style={cb(subBg,30,36,{fontSize:12,fontWeight:800})}>{b9.reduce((s,h)=>s+(ms[h.hole]?.a1||0),0)||"—"}</div>
+            <div style={cb(subBg,30,36,{fontSize:12,fontWeight:800})}>{b9.reduce((s,h)=>s+(ms[h.hole]?.a2||0),0)||"—"}</div>
+            <div style={cb(subBg,20,44,{})}/>
+          </div>
+          <div style={{display:"flex",flexDirection:"column"}}>
+            <div style={cb(totBg,24,36,{fontSize:9,fontWeight:800,color:"#5a7a5a"})}>TOT</div>
+            <div style={cb(totBg,22,36,{fontSize:9,fontWeight:800,color:"#555"})}>{course.par}</div>
+            <div style={cb(totBg,20,36,{fontSize:8,fontWeight:800,color:"#666"})}>{tee.total.toLocaleString()}</div>
+            <div style={cb(totBg,30,36,{fontSize:12,fontWeight:800})}>{all.reduce((s,h)=>s+(ms[h.hole]?.h1||0),0)||"—"}</div>
+            <div style={cb(totBg,30,36,{fontSize:12,fontWeight:800})}>{all.reduce((s,h)=>s+(ms[h.hole]?.h2||0),0)||"—"}</div>
+            <div style={cb(totBg,30,36,{fontSize:12,fontWeight:800})}>{all.reduce((s,h)=>s+(ms[h.hole]?.a1||0),0)||"—"}</div>
+            <div style={cb(totBg,30,36,{fontSize:12,fontWeight:800})}>{all.reduce((s,h)=>s+(ms[h.hole]?.a2||0),0)||"—"}</div>
+            <div style={cb(totBg,20,44,{})}/>
+          </div>
+        </div>
+      </div>
+      <div style={{textAlign:"center",fontSize:10,color:"#999",padding:"4px 0 14px"}}>Tap any hole to enter scores</div>
+
+      {editHole&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"flex-end",zIndex:200}} onClick={()=>setEditHole(null)}>
+          <div style={{background:"#fff",borderTop:"2px solid #e8e0d8",borderRadius:"20px 20px 0 0",padding:"16px 18px 32px",width:"100%",maxWidth:480,margin:"0 auto"}} onClick={e=>e.stopPropagation()}>
+            <div style={{width:36,height:4,background:"#e0d8d0",borderRadius:2,margin:"0 auto 14px"}}/>
+            <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:18,letterSpacing:2,textAlign:"center",color:"#1a1a1a",marginBottom:14}}>
+              {"Hole "+editHole+" · Par "+all.find(h=>h.hole===editHole).par+" · "+all.find(h=>h.hole===editHole).yds+" yds"}
+            </div>
+            <div style={{display:"flex",gap:8,marginBottom:12}}>
+              {[{lbl:hN1,val:eH1,set:setEH1},{lbl:hN2,val:eH2,set:setEH2}].map(({lbl,val,set})=>(
+                <div key={lbl} style={{flex:1}}>
+                  <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",color:"#b83050",textAlign:"center",marginBottom:6}}>{lbl}</div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:4}}>
+                    {[1,2,3,4,5,6,7,8,9,10].map(n=><button key={n} style={{height:38,background:val==n?"#b83050":"#f5f0eb",border:val==n?"none":"1.5px solid #e0d8d0",borderRadius:6,color:val==n?"#fff":"#1a1a1a",fontSize:14,fontWeight:700,cursor:"pointer",width:"100%"}} onClick={()=>set(n)}>{n}</button>)}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{display:"flex",gap:8,marginBottom:12}}>
+              {[{lbl:aN1,val:eA1,set:setEA1},{lbl:aN2,val:eA2,set:setEA2}].map(({lbl,val,set})=>(
+                <div key={lbl} style={{flex:1}}>
+                  <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",color:"#9b7010",textAlign:"center",marginBottom:6}}>{lbl}</div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:4}}>
+                    {[1,2,3,4,5,6,7,8,9,10].map(n=><button key={n} style={{height:38,background:val==n?"#9b7010":"#f5f0eb",border:val==n?"none":"1.5px solid #e0d8d0",borderRadius:6,color:val==n?"#fff":"#1a1a1a",fontSize:14,fontWeight:700,cursor:"pointer",width:"100%"}} onClick={()=>set(n)}>{n}</button>)}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button style={{width:"100%",padding:13,background:"#1a1a1a",border:"none",borderRadius:12,color:"#fff",fontFamily:"'Bebas Neue',sans-serif",fontSize:17,letterSpacing:2,cursor:"pointer"}} onClick={commit}>{"Save Hole "+editHole}</button>
+            <button style={{width:"100%",marginTop:8,padding:10,background:"none",border:"1.5px solid #e0d8d0",borderRadius:12,color:"#aaa",fontSize:13,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}} onClick={()=>setEditHole(null)}>Cancel</button>
+          </div>
+        </div>
+      )}
+      <NavBar view="matches" setView={setView}/>
     </div>
   );
 }
@@ -373,6 +639,8 @@ function ScoreCard({activeRound,match,teeIdx,scores,saveScore,onBack,setView}){
 
 function OverallView({byRound,scores,setView,setActiveRound,setActiveMatch}){
   const pts=totals(scores,byRound);
+  const [collapsed,setCollapsed]=useState({r1:false,r2:false,r3:false});
+  function toggleRound(id){setCollapsed(prev=>({...prev,[id]:!prev[id]}));}
   return(
     <div style={{fontFamily:"'DM Sans',sans-serif",background:"#f5f0eb",color:"#1a1a1a",minHeight:"100vh",maxWidth:480,margin:"0 auto",paddingBottom:84}}>
       <div style={{background:"#1a1a1a",padding:"24px 18px 20px"}}>
@@ -394,7 +662,7 @@ function OverallView({byRound,scores,setView,setActiveRound,setActiveMatch}){
                 <img src={img} width={44} height={44} style={{borderRadius:"50%",objectFit:"cover"}} alt=""/>
               </div>
               {ROUNDS.map(r=>{
-                const rt=roundTotals(scores,byRound[r.id]);
+                const rt=roundTotals(scores,byRound[r.id],r.hilo);
                 const val=side==="home"?rt.b:rt.o;
                 return <div key={r.id} style={{flex:1,textAlign:"center",fontFamily:"'Bebas Neue',sans-serif",fontSize:28,color:val>0?color:"#444"}}>{val||0}</div>;
               })}
@@ -409,18 +677,21 @@ function OverallView({byRound,scores,setView,setActiveRound,setActiveMatch}){
           const rm=byRound[r.id],rt=roundTotals(scores,rm);
           return(
             <div key={r.id} style={{marginTop:16,background:"#fff",borderRadius:14,border:"1.5px solid #e8e0d8",overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 16px",borderBottom:"1px solid #f0ece6",background:"#fafaf8"}}>
-                <div>
+              <div onClick={()=>toggleRound(r.id)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 16px",borderBottom:collapsed[r.id]?"none":"1px solid #f0ece6",background:"#fafaf8",cursor:"pointer"}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
                   <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:18,letterSpacing:1,color:"#1a1a1a"}}>{r.label}</span>
-                  <span style={{fontSize:11,color:"#555",marginLeft:8,fontWeight:600}}>{r.fmt}</span>
+                  <span style={{fontSize:11,color:"#555",fontWeight:600}}>{r.fmt}</span>
                 </div>
-                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:20,letterSpacing:1}}>
-                  <span style={{color:"#b83050"}}>{rt.b}</span>
-                  <span style={{color:"#ccc"}}> – </span>
-                  <span style={{color:"#9b7010"}}>{rt.o}</span>
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:20,letterSpacing:1}}>
+                    <span style={{color:"#b83050"}}>{rt.b}</span>
+                    <span style={{color:"#ccc"}}> – </span>
+                    <span style={{color:"#9b7010"}}>{rt.o}</span>
+                  </div>
+                  <span style={{color:"#999",fontSize:14}}>{collapsed[r.id]?"▸":"▾"}</span>
                 </div>
               </div>
-              {rm.map((m,i)=>{
+              {!collapsed[r.id]&&rm.map((m,i)=>{
                 const mst=matchStatus(scores,m.id),res=mResult(mst),hN=nl(m.home),aN=nl(m.away),rdy=ready(m);
                 const sColor=stColor(mst);
                 const resultStr=mst.st==="done"?(mst.leader?(mst.leader==="home"?hN:aN)+" "+Math.abs(mst.lead)+"&"+(18-mst.played):"Halved"):null;
@@ -538,11 +809,12 @@ export default function App(){
     );
   }
 
-  function saveScore(mid,hole,home,away){
-    setScores(prev=>({...prev,[mid]:{...(prev[mid]||{}),[hole]:{
-      home:home===""||home==null?null:parseInt(home),
-      away:away===""||away==null?null:parseInt(away),
-    }}}));
+  function saveScore(mid,hole,homeOrObj,away){
+    setScores(prev=>({...prev,[mid]:{...(prev[mid]||{}),[hole]:
+      (typeof homeOrObj==="object")
+        ? homeOrObj
+        : {home:homeOrObj===""||homeOrObj==null?null:parseInt(homeOrObj),away:away===""||away==null?null:parseInt(away)}
+    }}));
   }
   function updateMatchup(roundId,matchIdx,side,playerIdx,name){
     setByRound(prev=>{
@@ -555,6 +827,10 @@ export default function App(){
 
   if(view==="scorecard"&&activeRound&&activeMatch){
     const match=byRound[activeRound].find(m=>m.id===activeMatch);
+    const rDef=ROUNDS.find(r=>r.id===activeRound);
+    if(rDef.hilo){
+      return <HiLoScoreCard activeRound={activeRound} match={match} teeIdx={teeByRound[activeRound]} scores={scores} saveScore={saveScore} onBack={()=>setView("round")} setView={setView}/>;
+    }
     return <ScoreCard activeRound={activeRound} match={match} teeIdx={teeByRound[activeRound]} scores={scores} saveScore={saveScore} onBack={()=>setView("round")} setView={setView}/>;
   }
 
@@ -621,7 +897,7 @@ export default function App(){
           const done=rm.filter(m=>matchStatus(scores,m.id).st==="done").length;
           const live=rm.filter(m=>matchStatus(scores,m.id).st==="live").length;
           const set=rm.filter(m=>ready(m)).length;
-          let rb=0,ro=0;rm.forEach(m=>{const res=mResult(matchStatus(scores,m.id));if(res){rb+=res.h;ro+=res.a;}});
+          let rb=0,ro=0;if(r.hilo){rm.forEach(m=>{const mst=hiloMatchStatus(scores,m.id);rb+=mst.bp||0;ro+=mst.op||0;});}else{rm.forEach(m=>{const res=mResult(matchStatus(scores,m.id));if(res){rb+=res.h;ro+=res.a;}});}
           return(
             <div key={r.id} style={{background:"#fff",border:"1.5px solid #e8e0d8",borderRadius:16,overflow:"hidden",cursor:"pointer",boxShadow:"0 2px 8px rgba(0,0,0,0.06)",backgroundImage:"repeating-linear-gradient(0deg,transparent,transparent 18px,rgba(0,0,0,0.025) 18px,rgba(0,0,0,0.025) 19px),repeating-linear-gradient(90deg,transparent,transparent 18px,rgba(0,0,0,0.015) 18px,rgba(0,0,0,0.015) 19px)"}} onClick={()=>{setActiveRound(r.id);setView("round");}}>
               <div style={{padding:"18px 18px 16px"}}>
