@@ -353,10 +353,10 @@ function HiLoScoreCard({activeRound,match,teeIdx,scores,saveScore,onBack,setView
             <div style={cb(hdrBg,24,36,{fontSize:9,fontWeight:800,color:"#555"})}>#</div>
             <div style={cb(hdrBg,22,36,{fontSize:9,fontWeight:800,color:"#555"})}>Par</div>
             <div style={cb(hdrBg,20,36,{fontSize:8,fontWeight:800,color:"#777"})}>Yds</div>
-            <div style={cb(hdrBg,30,36,{fontSize:8,fontWeight:800,color:"#b83050"})}>{hN1}</div>
-            <div style={cb(hdrBg,30,36,{fontSize:8,fontWeight:800,color:"#b83050"})}>{hN2}</div>
-            <div style={cb(hdrBg,30,36,{fontSize:8,fontWeight:800,color:"#9b7010"})}>{aN1}</div>
-            <div style={cb(hdrBg,30,36,{fontSize:8,fontWeight:800,color:"#9b7010"})}>{aN2}</div>
+            <div style={cb(hdrBg,34,36,{fontSize:8,fontWeight:800,color:"#b83050"})}>{hN1}</div>
+            <div style={{...cb(hdrBg,34,36,{fontSize:8,fontWeight:800,color:"#b83050"}),borderBottom:"2px solid #d0c8c0"}}>{hN2}</div>
+            <div style={cb(hdrBg,34,36,{fontSize:8,fontWeight:800,color:"#9b7010"})}>{aN1}</div>
+            <div style={cb(hdrBg,34,36,{fontSize:8,fontWeight:800,color:"#9b7010"})}>{aN2}</div>
             <div style={cb(hdrBg,20,44,{fontSize:7,fontWeight:800,color:"#555"})}>Lo|Hi</div>
           </div>
           {f9.map(h=>{
@@ -369,10 +369,10 @@ function HiLoScoreCard({activeRound,match,teeIdx,scores,saveScore,onBack,setView
                 <div style={cb(bgH,24,36,{fontSize:10,fontWeight:800,color:"#5a7a5a",cursor:"pointer"})}>{h.hole}</div>
                 <div style={cb(cellBg,22,36,{fontSize:10,color:"#555"})}>{h.par}</div>
                 <div style={cb(cellBg,20,36,{fontSize:9,color:"#666"})}>{h.yds}</div>
-                <div style={cb("#fffcfa",30,36,{fontSize:13,fontWeight:700,cursor:"pointer"})}>{hs.h1!=null?<div style={scoreStyle(hs.h1,h.par)}>{hs.h1}</div>:<span style={{color:"#ccc"}}>—</span>}</div>
-                <div style={cb("#fffcfa",30,36,{fontSize:13,fontWeight:700,cursor:"pointer"})}>{hs.h2!=null?<div style={scoreStyle(hs.h2,h.par)}>{hs.h2}</div>:<span style={{color:"#ccc"}}>—</span>}</div>
-                <div style={cb("#fafaf8",30,36,{fontSize:13,fontWeight:700,cursor:"pointer"})}>{hs.a1!=null?<div style={scoreStyle(hs.a1,h.par)}>{hs.a1}</div>:<span style={{color:"#ccc"}}>—</span>}</div>
-                <div style={cb("#fafaf8",30,36,{fontSize:13,fontWeight:700,cursor:"pointer"})}>{hs.a2!=null?<div style={scoreStyle(hs.a2,h.par)}>{hs.a2}</div>:<span style={{color:"#ccc"}}>—</span>}</div>
+                <div style={cb("#fffcfa",34,36,{fontSize:13,fontWeight:700,cursor:"pointer"})}>{hs.h1!=null?<div style={scoreStyle(hs.h1,h.par)}>{hs.h1}</div>:<span style={{color:"#ccc"}}>—</span>}</div>
+                <div style={{...cb("#fffcfa",34,36,{fontSize:13,fontWeight:700,cursor:"pointer"}),borderBottom:"2px solid #e0d8d0"}}>{hs.h2!=null?<div style={scoreStyle(hs.h2,h.par)}>{hs.h2}</div>:<span style={{color:"#ccc"}}>—</span>}</div>
+                <div style={cb("#fafaf8",34,36,{fontSize:13,fontWeight:700,cursor:"pointer"})}>{hs.a1!=null?<div style={scoreStyle(hs.a1,h.par)}>{hs.a1}</div>:<span style={{color:"#ccc"}}>—</span>}</div>
+                <div style={cb("#fafaf8",34,36,{fontSize:13,fontWeight:700,cursor:"pointer"})}>{hs.a2!=null?<div style={scoreStyle(hs.a2,h.par)}>{hs.a2}</div>:<span style={{color:"#ccc"}}>—</span>}</div>
                 <HoleResult hole={h.hole}/>
               </div>
             );
@@ -381,10 +381,10 @@ function HiLoScoreCard({activeRound,match,teeIdx,scores,saveScore,onBack,setView
             <div style={cb(subBg,24,36,{fontSize:9,fontWeight:800,color:"#5a7a5a"})}>OUT</div>
             <div style={cb(subBg,22,36,{fontSize:9,fontWeight:700,color:"#555"})}>{f9.reduce((s,h)=>s+h.par,0)}</div>
             <div style={cb(subBg,20,36,{fontSize:8,fontWeight:700,color:"#666"})}>{f9.reduce((s,h)=>s+h.yds,0)}</div>
-            <div style={cb(subBg,30,36,{fontSize:12,fontWeight:800})}>{f9.reduce((s,h)=>s+(ms[h.hole]?.h1||0),0)||"—"}</div>
-            <div style={cb(subBg,30,36,{fontSize:12,fontWeight:800})}>{f9.reduce((s,h)=>s+(ms[h.hole]?.h2||0),0)||"—"}</div>
-            <div style={cb(subBg,30,36,{fontSize:12,fontWeight:800})}>{f9.reduce((s,h)=>s+(ms[h.hole]?.a1||0),0)||"—"}</div>
-            <div style={cb(subBg,30,36,{fontSize:12,fontWeight:800})}>{f9.reduce((s,h)=>s+(ms[h.hole]?.a2||0),0)||"—"}</div>
+            <div style={cb(subBg,34,36,{fontSize:12,fontWeight:800})}>{f9.reduce((s,h)=>s+(ms[h.hole]?.h1||0),0)||"—"}</div>
+            <div style={{...cb(subBg,34,36,{fontSize:12,fontWeight:800}),borderBottom:"2px solid #d0c8c0"}}>{f9.reduce((s,h)=>s+(ms[h.hole]?.h2||0),0)||"—"}</div>
+            <div style={cb(subBg,34,36,{fontSize:12,fontWeight:800})}>{f9.reduce((s,h)=>s+(ms[h.hole]?.a1||0),0)||"—"}</div>
+            <div style={cb(subBg,34,36,{fontSize:12,fontWeight:800})}>{f9.reduce((s,h)=>s+(ms[h.hole]?.a2||0),0)||"—"}</div>
             <div style={cb(subBg,20,44,{})}/>
           </div>
           {b9.map(h=>{
@@ -396,10 +396,10 @@ function HiLoScoreCard({activeRound,match,teeIdx,scores,saveScore,onBack,setView
                 <div style={cb(bgH,24,36,{fontSize:10,fontWeight:800,color:"#5a7a5a",cursor:"pointer"})}>{h.hole}</div>
                 <div style={cb(cellBg,22,36,{fontSize:10,color:"#555"})}>{h.par}</div>
                 <div style={cb(cellBg,20,36,{fontSize:9,color:"#666"})}>{h.yds}</div>
-                <div style={cb("#fffcfa",30,36,{fontSize:13,fontWeight:700,cursor:"pointer"})}>{hs.h1!=null?<div style={scoreStyle(hs.h1,h.par)}>{hs.h1}</div>:<span style={{color:"#ccc"}}>—</span>}</div>
-                <div style={cb("#fffcfa",30,36,{fontSize:13,fontWeight:700,cursor:"pointer"})}>{hs.h2!=null?<div style={scoreStyle(hs.h2,h.par)}>{hs.h2}</div>:<span style={{color:"#ccc"}}>—</span>}</div>
-                <div style={cb("#fafaf8",30,36,{fontSize:13,fontWeight:700,cursor:"pointer"})}>{hs.a1!=null?<div style={scoreStyle(hs.a1,h.par)}>{hs.a1}</div>:<span style={{color:"#ccc"}}>—</span>}</div>
-                <div style={cb("#fafaf8",30,36,{fontSize:13,fontWeight:700,cursor:"pointer"})}>{hs.a2!=null?<div style={scoreStyle(hs.a2,h.par)}>{hs.a2}</div>:<span style={{color:"#ccc"}}>—</span>}</div>
+                <div style={cb("#fffcfa",34,36,{fontSize:13,fontWeight:700,cursor:"pointer"})}>{hs.h1!=null?<div style={scoreStyle(hs.h1,h.par)}>{hs.h1}</div>:<span style={{color:"#ccc"}}>—</span>}</div>
+                <div style={{...cb("#fffcfa",34,36,{fontSize:13,fontWeight:700,cursor:"pointer"}),borderBottom:"2px solid #e0d8d0"}}>{hs.h2!=null?<div style={scoreStyle(hs.h2,h.par)}>{hs.h2}</div>:<span style={{color:"#ccc"}}>—</span>}</div>
+                <div style={cb("#fafaf8",34,36,{fontSize:13,fontWeight:700,cursor:"pointer"})}>{hs.a1!=null?<div style={scoreStyle(hs.a1,h.par)}>{hs.a1}</div>:<span style={{color:"#ccc"}}>—</span>}</div>
+                <div style={cb("#fafaf8",34,36,{fontSize:13,fontWeight:700,cursor:"pointer"})}>{hs.a2!=null?<div style={scoreStyle(hs.a2,h.par)}>{hs.a2}</div>:<span style={{color:"#ccc"}}>—</span>}</div>
                 <HoleResult hole={h.hole}/>
               </div>
             );
@@ -408,10 +408,10 @@ function HiLoScoreCard({activeRound,match,teeIdx,scores,saveScore,onBack,setView
             <div style={cb(subBg,24,36,{fontSize:9,fontWeight:800,color:"#5a7a5a"})}>IN</div>
             <div style={cb(subBg,22,36,{fontSize:9,fontWeight:700,color:"#555"})}>{b9.reduce((s,h)=>s+h.par,0)}</div>
             <div style={cb(subBg,20,36,{fontSize:8,fontWeight:700,color:"#666"})}>{b9.reduce((s,h)=>s+h.yds,0)}</div>
-            <div style={cb(subBg,30,36,{fontSize:12,fontWeight:800})}>{b9.reduce((s,h)=>s+(ms[h.hole]?.h1||0),0)||"—"}</div>
-            <div style={cb(subBg,30,36,{fontSize:12,fontWeight:800})}>{b9.reduce((s,h)=>s+(ms[h.hole]?.h2||0),0)||"—"}</div>
-            <div style={cb(subBg,30,36,{fontSize:12,fontWeight:800})}>{b9.reduce((s,h)=>s+(ms[h.hole]?.a1||0),0)||"—"}</div>
-            <div style={cb(subBg,30,36,{fontSize:12,fontWeight:800})}>{b9.reduce((s,h)=>s+(ms[h.hole]?.a2||0),0)||"—"}</div>
+            <div style={cb(subBg,34,36,{fontSize:12,fontWeight:800})}>{b9.reduce((s,h)=>s+(ms[h.hole]?.h1||0),0)||"—"}</div>
+            <div style={{...cb(subBg,34,36,{fontSize:12,fontWeight:800}),borderBottom:"2px solid #d0c8c0"}}>{b9.reduce((s,h)=>s+(ms[h.hole]?.h2||0),0)||"—"}</div>
+            <div style={cb(subBg,34,36,{fontSize:12,fontWeight:800})}>{b9.reduce((s,h)=>s+(ms[h.hole]?.a1||0),0)||"—"}</div>
+            <div style={cb(subBg,34,36,{fontSize:12,fontWeight:800})}>{b9.reduce((s,h)=>s+(ms[h.hole]?.a2||0),0)||"—"}</div>
             <div style={cb(subBg,20,44,{})}/>
           </div>
           <div style={{display:"flex",flexDirection:"column"}}>
@@ -761,7 +761,7 @@ export default function App(){
   },[byRound,teeByRound,scores]);
 
   if(!checked)return(
-    <div style={{background:"#1a1a1a",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}>
+    <div style={{background:"#1a1a1a",minHeight:"100vh",width:"100%",display:"flex",alignItems:"center",justifyContent:"center"}}>
       <img src={BENDERS_LOGO} width={120} height={120} style={{objectFit:"contain",opacity:0.8}} alt=""/>
     </div>
   );
@@ -779,7 +779,7 @@ export default function App(){
 
   if(!authed){
     return(
-      <div style={{fontFamily:"'DM Sans',sans-serif",background:"#1a1a1a",minHeight:"100vh",width:"100%",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16,padding:"32px 24px",boxSizing:"border-box",opacity:fading?0:1,transition:"opacity 0.4s"}}>
+      <div style={{fontFamily:"'DM Sans',sans-serif",background:"#1a1a1a",minHeight:"100vh",width:"100%",maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16,padding:"32px 24px",boxSizing:"border-box",opacity:fading?0:1,transition:"opacity 0.4s"}}>
         <img src={BENDERS_LOGO} width={110} height={110} style={{objectFit:"contain"}} alt=""/>
         <div style={{textAlign:"center"}}>
           <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:44,letterSpacing:6,color:"#fff",lineHeight:1}}>BENDERS</div>
@@ -899,7 +899,7 @@ export default function App(){
           const set=rm.filter(m=>ready(m)).length;
           let rb=0,ro=0;if(r.hilo){rm.forEach(m=>{const mst=hiloMatchStatus(scores,m.id);rb+=mst.bp||0;ro+=mst.op||0;});}else{rm.forEach(m=>{const res=mResult(matchStatus(scores,m.id));if(res){rb+=res.h;ro+=res.a;}});}
           return(
-            <div key={r.id} style={{background:"#fff",border:"1.5px solid #e8e0d8",borderRadius:16,overflow:"hidden",cursor:"pointer",boxShadow:"0 2px 8px rgba(0,0,0,0.06)",backgroundImage:"repeating-linear-gradient(0deg,transparent,transparent 18px,rgba(0,0,0,0.025) 18px,rgba(0,0,0,0.025) 19px),repeating-linear-gradient(90deg,transparent,transparent 18px,rgba(0,0,0,0.015) 18px,rgba(0,0,0,0.015) 19px)"}} onClick={()=>{setActiveRound(r.id);setView("round");}}>
+            <div key={r.id} style={{background:"#fff",border:"1.5px solid #e8e0d8",borderRadius:16,overflow:"hidden",cursor:"pointer",boxShadow:"0 2px 8px rgba(0,0,0,0.06)"}} onClick={()=>{setActiveRound(r.id);setView("round");}}>
               <div style={{padding:"18px 18px 16px"}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
                   <div>
