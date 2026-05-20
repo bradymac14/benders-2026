@@ -37,52 +37,48 @@ const ROUNDS = [
   { id:"r3", label:"Round 3", date:"Jun 14", fmt:"Singles Match Play", course:"scarecrow", slots:6, pps:1 },
 ];
 
-function emptySlots(r) {
-  return Array.from({length:r.slots},(_,i)=>({id:r.id+"m"+(i+1),label:"Match "+(i+1),home:Array(r.pps).fill(""),away:Array(r.pps).fill("")}));
-}
-function initByRound() { const m={}; ROUNDS.forEach(r=>{m[r.id]=emptySlots(r);}); return m; }
-function loadState() { try{const s=localStorage.getItem("benders2026");if(s)return JSON.parse(s);}catch(e){} return null; }
+function emptySlots(r){return Array.from({length:r.slots},(_,i)=>({id:r.id+"m"+(i+1),label:"Match "+(i+1),home:Array(r.pps).fill(""),away:Array(r.pps).fill("")}));}
+function initByRound(){const m={};ROUNDS.forEach(r=>{m[r.id]=emptySlots(r);});return m;}
+function loadState(){try{const s=localStorage.getItem("benders2026");if(s)return JSON.parse(s);}catch(e){}return null;}
 
-function matchStatus(scores, mid) {
-  const ms=scores[mid]||{}; let hw=0,aw=0,played=0;
+function matchStatus(scores,mid){
+  const ms=scores[mid]||{};let hw=0,aw=0,played=0;
   for(let h=1;h<=18;h++){const s=ms[h];if(!s||s.home==null||s.away==null)break;played++;if(s.home<s.away)hw++;else if(s.away<s.home)aw++;}
   const lead=hw-aw,left=18-played,leader=lead>0?"home":lead<0?"away":null;
   if(played===0)return{st:"ns",played,lead,leader};
   if(Math.abs(lead)>left||played===18)return{st:"done",played,lead,leader};
   return{st:"live",played,lead,leader};
 }
-function stLabel(ms,hN,aN) {
+function stLabel(ms,hN,aN){
   if(ms.st==="ns")return"Not Started";
   const nm=ms.leader==="home"?hN:ms.leader==="away"?aN:null,lead=Math.abs(ms.lead),left=18-ms.played;
   if(ms.st==="done")return nm?nm+" wins "+lead+"&"+left:"Halved";
   return nm?nm+" "+lead+"UP (thru "+ms.played+")":"All Square (thru "+ms.played+")";
 }
-function stColor(ms) { if(!ms.leader)return"#555"; return ms.leader==="home"?"#b83050":"#9b7010"; }
-function mResult(ms) {
+function stColor(ms){if(!ms.leader)return"#333";return ms.leader==="home"?"#b83050":"#9b7010";}
+function mResult(ms){
   if(ms.st!=="done")return null;
   if(!ms.leader)return{h:0.5,a:0.5};
   return{h:ms.leader==="home"?1:0,a:ms.leader==="away"?1:0};
 }
-function totals(scores,byRound) {
+function totals(scores,byRound){
   let b=0,o=0;
   for(const rm of Object.values(byRound)){for(const m of rm){const r=mResult(matchStatus(scores,m.id));if(r){b+=r.h;o+=r.a;}}}
   return{b,o};
 }
-function roundTotals(scores,matches) {
-  let b=0,o=0;
-  for(const m of matches){const r=mResult(matchStatus(scores,m.id));if(r){b+=r.h;o+=r.a;}}
-  return{b,o};
+function roundTotals(scores,matches){
+  let b=0,o=0;for(const m of matches){const r=mResult(matchStatus(scores,m.id));if(r){b+=r.h;o+=r.a;}}return{b,o};
 }
 function nl(arr){return arr.filter(Boolean).join(" / ")||"—";}
 function ready(m){return m.home.every(Boolean)&&m.away.every(Boolean);}
 function holeMP(upTo,ms){
   let hw=0,aw=0;
   for(let h=1;h<=upTo;h++){const s=ms[h];if(!s||s.home==null||s.away==null)continue;if(s.home<s.away)hw++;else if(s.away<s.home)aw++;}
-  const d=hw-aw; if(d===0)return"AS"; return(d>0?"Buzz":"Owls")+" "+Math.abs(d)+"up";
+  const d=hw-aw;if(d===0)return"AS";return(d>0?"Buzz":"Owls")+" "+Math.abs(d)+"up";
 }
 function sumS(team,holes,ms){return holes.reduce((s,h)=>s+(ms[h.hole]?.[team]||0),0);}
 
-function scoreStyle(score,par) {
+function scoreStyle(score,par){
   if(score==null)return{};
   const d=score-par;
   const base={width:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto",fontSize:12,fontWeight:700,color:"#1a1a1a",flexShrink:0};
@@ -93,12 +89,12 @@ function scoreStyle(score,par) {
   return{...base,border:"1.5px solid #555",boxShadow:"0 0 0 2px #fff, 0 0 0 3.5px #555"};
 }
 
-const pill = (type) => {
+const pill=(type)=>{
   const base={display:"inline-block",fontSize:9,padding:"3px 9px",borderRadius:20,fontWeight:700,letterSpacing:0.5};
   if(type==="live")return{...base,background:"#fce8ec",color:"#b83050",border:"1px solid #f0b8c4"};
   if(type==="done")return{...base,background:"#e8f5e8",color:"#3a7a3a",border:"1px solid #b8d8b8"};
-  if(type==="set")return{...base,background:"#e8f0fc",color:"#3060b8",border:"1px solid #b8ccf0"};
-  if(type==="partial")return{...base,background:"#fdf4e0",color:"#9b7010",border:"1px solid #e8d090"};
+  if(type==="set")return{...base,background:"#eef0f5",color:"#333",border:"1px solid #ccc"};
+  if(type==="partial")return{...base,background:"#f5f0e8",color:"#666",border:"1px solid #ddd"};
   return{...base,color:"#999",fontSize:9};
 };
 
@@ -109,7 +105,7 @@ function Logo({src,size=64,round=true}){
 function NavBar({view,setView}){
   return(
     <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:"#fff",borderTop:"1.5px solid #e8e0d8",display:"flex",padding:"10px 16px 22px",gap:10,zIndex:50,boxShadow:"0 -2px 12px rgba(0,0,0,0.06)"}}>
-      {[["matches","Matches"],["overall","Overall"]].map(([v,lbl])=>{
+      {[["matches","MATCHES"],["overall","OVERALL"]].map(([v,lbl])=>{
         const active=view===v;
         return(
           <button key={v} onClick={()=>setView(v)} style={{flex:1,background:active?"#1a1a1a":"none",border:active?"none":"1.5px solid #d0c8c0",borderRadius:10,cursor:"pointer",padding:"10px 0",display:"flex",alignItems:"center",justifyContent:"center"}}>
@@ -124,7 +120,7 @@ function NavBar({view,setView}){
 function PHdr({title,onBack}){
   return(
     <div style={{display:"flex",alignItems:"center",padding:"14px 16px",borderBottom:"1.5px solid #e8e0d8",gap:10,background:"#fff"}}>
-      <button style={{background:"none",border:"none",color:"#5a7a5a",fontSize:14,cursor:"pointer",whiteSpace:"nowrap",fontWeight:600,fontFamily:"'DM Sans',sans-serif"}} onClick={onBack}>← Back</button>
+      <button style={{background:"none",border:"none",color:"#333",fontSize:14,cursor:"pointer",whiteSpace:"nowrap",fontWeight:600,fontFamily:"'DM Sans',sans-serif"}} onClick={onBack}>← Back</button>
       <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:22,letterSpacing:1.5}}>{title}</div>
     </div>
   );
@@ -155,7 +151,7 @@ function TeePicker({course,teeIdx,setTeeIdx}){
                   <div style={{fontSize:15,fontWeight:700,color:"#1a1a1a"}}>{t.label}</div>
                   <div style={{fontSize:12,color:"#555"}}>{t.total.toLocaleString()} yards · Par {course.par}</div>
                 </div>
-                {i===teeIdx&&<div style={{marginLeft:"auto",color:"#b83050",fontWeight:700,fontSize:16}}>✓</div>}
+                {i===teeIdx&&<div style={{marginLeft:"auto",color:"#1a1a1a",fontWeight:700,fontSize:16}}>✓</div>}
               </button>
             ))}
           </div>
@@ -185,7 +181,7 @@ function MatchupPicker({match,matchIdx,roundId,pps,updateMatchup,allMatches}){
             );
           })}
         </div>
-        <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:16,color:"#ccc",paddingTop:26,flexShrink:0}}>VS</div>
+        <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:16,color:"#999",paddingTop:26,flexShrink:0}}>VS</div>
         <div style={{flex:1,display:"flex",flexDirection:"column",gap:8}}>
           <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,marginBottom:2,color:"#9b7010"}}>Owls GC</div>
           {Array.from({length:pps}).map((_,pi)=>{
@@ -216,19 +212,14 @@ function ScoreCard({activeRound,match,teeIdx,scores,saveScore,onBack,setView}){
   const all=[...f9,...b9];
   const isDone=mst.st==="done";
   const bar=(()=>{let hw=0,aw=0;for(let h=1;h<=18;h++){const s=ms[h];if(!s||s.home==null||s.away==null)continue;if(s.home<s.away)hw++;else if(s.away<s.home)aw++;}return{hw,aw,diff:hw-aw};})();
-  function openHole(h){if(isDone)return;const s=ms[h]||{};setEHome(s.home!=null?s.home:"");setEAway(s.away!=null?s.away:"");setEditHole(h);}
-  function commit(){
-    saveScore(match.id,editHole,eHome,eAway);
-    setSaved(editHole);
-    setEditHole(null);
-    setTimeout(()=>setSaved(null),800);
-  }
+  function openHole(h){const s=ms[h]||{};setEHome(s.home!=null?s.home:"");setEAway(s.away!=null?s.away:"");setEditHole(h);}
+  function commit(){saveScore(match.id,editHole,eHome,eAway);setSaved(editHole);setEditHole(null);setTimeout(()=>setSaved(null),800);}
   const hdrBg="#f0ece6",subBg="#e8e2da",totBg="#ddd6cc",cellBg="#fff",buzzBg="#fffcfa",owlsBg="#fafaf8";
   const sColor=stColor(mst);
   const f9out=sumS("home",f9,ms)||"—",f9outA=sumS("away",f9,ms)||"—";
   const b9in=sumS("home",b9,ms)||"—",b9inA=sumS("away",b9,ms)||"—";
   const tot=sumS("home",all,ms)||"—",totA=sumS("away",all,ms)||"—";
-  const cellBase=(bg,h,w,extra={})=>({height:h,width:w,background:bg,display:"flex",alignItems:"center",justifyContent:"center",...extra});
+  const cb=(bg,h,w,extra={})=>({height:h,width:w,background:bg,display:"flex",alignItems:"center",justifyContent:"center",...extra});
 
   return(
     <div style={{fontFamily:"'DM Sans',sans-serif",background:"#f5f0eb",color:"#1a1a1a",minHeight:"100vh",maxWidth:480,margin:"0 auto",paddingBottom:84}}>
@@ -246,24 +237,24 @@ function ScoreCard({activeRound,match,teeIdx,scores,saveScore,onBack,setView}){
         </div>
         <div style={{fontSize:13,fontWeight:700,marginTop:6,color:sColor}}>{stLabel(mst,hN,aN)}</div>
         {isDone&&(
-          <div style={{marginTop:8,display:"inline-block",padding:"6px 20px",background:sColor,borderRadius:8}}>
+          <div style={{marginTop:8,display:"inline-block",padding:"6px 20px",background:"#1a1a1a",borderRadius:8}}>
             <span style={{color:"#fff",fontFamily:"'Bebas Neue',sans-serif",fontSize:16,letterSpacing:2}}>
               {mst.leader?(mst.leader==="home"?hN:aN)+" WIN":"HALVED"}
             </span>
           </div>
         )}
-        {isDone&&<div style={{fontSize:10,color:"#999",marginTop:6}}>Match complete — scores locked</div>}
+        
       </div>
 
       <div style={{background:"#fff",borderBottom:"1.5px solid #e8e0d8",padding:"12px 16px"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:11,fontWeight:700,marginBottom:6}}>
-          <span style={{color:"#b83050"}}>{hN}</span>
-          <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:18,letterSpacing:1}}>
+          <span style={{color:"#333"}}>{hN}</span>
+          <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:18,letterSpacing:1,color:"#1a1a1a"}}>
             <span style={{color:"#b83050"}}>{bar.hw}</span>
             <span style={{color:"#aaa"}}> – </span>
             <span style={{color:"#9b7010"}}>{bar.aw}</span>
           </span>
-          <span style={{color:"#9b7010"}}>{aN}</span>
+          <span style={{color:"#333"}}>{aN}</span>
         </div>
         <div style={{height:8,background:"#f0ece6",borderRadius:4,display:"flex",overflow:"hidden"}}>
           {bar.hw+bar.aw>0
@@ -276,11 +267,11 @@ function ScoreCard({activeRound,match,teeIdx,scores,saveScore,onBack,setView}){
         <div style={{display:"flex",gap:1,background:"#e0d8d0",borderRadius:10,overflow:"hidden",minWidth:"max-content"}}>
           <div style={{display:"flex",flexDirection:"column"}}>
             {[["#",hdrBg,28,36],["Par",hdrBg,26,36],["Yds",hdrBg,22,36]].map(([t,bg,h,w])=>(
-              <div key={t} style={cellBase(bg,h,w,{fontSize:9,fontWeight:800,color:"#555"})}>{t}</div>
+              <div key={t} style={cb(bg,h,w,{fontSize:9,fontWeight:800,color:"#555"})}>{t}</div>
             ))}
-            <div style={cellBase(hdrBg,28,36,{fontSize:9,fontWeight:800,color:"#b83050"})}>Buzz</div>
-            <div style={cellBase(hdrBg,28,36,{fontSize:9,fontWeight:800,color:"#9b7010"})}>Owls</div>
-            <div style={cellBase(hdrBg,22,40,{})}/>
+            <div style={cb(hdrBg,28,36,{fontSize:9,fontWeight:800,color:"#b83050"})}>Buzz</div>
+            <div style={cb(hdrBg,28,36,{fontSize:9,fontWeight:800,color:"#9b7010"})}>Owls</div>
+            <div style={cb(hdrBg,22,40,{})}/>
           </div>
           {f9.map(h=>{
             const hs=ms[h.hole]||{};
@@ -289,26 +280,26 @@ function ScoreCard({activeRound,match,teeIdx,scores,saveScore,onBack,setView}){
             const aSS=scoreStyle(hs.away!=null?hs.away:null,h.par);
             return(
               <div key={h.hole} style={{display:"flex",flexDirection:"column"}} onClick={()=>openHole(h.hole)}>
-                <div style={cellBase(isSaved?"#e8f5e8":cellBg,28,36,{fontSize:10,fontWeight:800,color:"#5a7a5a",cursor:isDone?"default":"pointer"})}>{h.hole}</div>
-                <div style={cellBase(cellBg,26,36,{fontSize:10,color:"#555"})}>{h.par}</div>
-                <div style={cellBase(cellBg,22,36,{fontSize:9,color:"#666"})}>{h.yds}</div>
-                <div style={cellBase(cellBg,36,36,{cursor:isDone?"default":"pointer"})}>
+                <div style={cb(isSaved?"#e8f5e8":cellBg,28,36,{fontSize:10,fontWeight:800,color:"#5a7a5a",cursor:"pointer"})}>{h.hole}</div>
+                <div style={cb(cellBg,26,36,{fontSize:10,color:"#555"})}>{h.par}</div>
+                <div style={cb(cellBg,22,36,{fontSize:9,color:"#666"})}>{h.yds}</div>
+                <div style={cb(buzzBg,36,36,{cursor:"pointer"})}>
                   {hs.home!=null?<div style={hSS}>{hs.home}</div>:<span style={{color:"#ccc",fontSize:13}}>—</span>}
                 </div>
-                <div style={cellBase(cellBg,36,36,{cursor:isDone?"default":"pointer"})}>
+                <div style={cb(owlsBg,36,36,{cursor:"pointer"})}>
                   {hs.away!=null?<div style={aSS}>{hs.away}</div>:<span style={{color:"#ccc",fontSize:13}}>—</span>}
                 </div>
-                <div style={cellBase(cellBg,22,40,{fontSize:8,color:"#555"})}>{holeMP(h.hole,ms)}</div>
+                <div style={cb(cellBg,22,40,{fontSize:8,color:"#555"})}>{holeMP(h.hole,ms)}</div>
               </div>
             );
           })}
           <div style={{display:"flex",flexDirection:"column"}}>
-            <div style={cellBase(subBg,28,36,{fontSize:10,fontWeight:800,color:"#5a7a5a"})}>OUT</div>
-            <div style={cellBase(subBg,26,36,{fontSize:10,fontWeight:700,color:"#555"})}>{f9.reduce((s,h)=>s+h.par,0)}</div>
-            <div style={cellBase(subBg,22,36,{fontSize:9,fontWeight:700,color:"#666"})}>{f9.reduce((s,h)=>s+h.yds,0)}</div>
-            <div style={cellBase(subBg,36,36,{fontSize:14,fontWeight:800})}>{f9out}</div>
-            <div style={cellBase(subBg,36,36,{fontSize:14,fontWeight:800})}>{f9outA}</div>
-            <div style={cellBase(subBg,22,40,{})}/>
+            <div style={cb(subBg,28,36,{fontSize:10,fontWeight:800,color:"#5a7a5a"})}>OUT</div>
+            <div style={cb(subBg,26,36,{fontSize:10,fontWeight:700,color:"#555"})}>{f9.reduce((s,h)=>s+h.par,0)}</div>
+            <div style={cb(subBg,22,36,{fontSize:9,fontWeight:700,color:"#666"})}>{f9.reduce((s,h)=>s+h.yds,0)}</div>
+            <div style={cb(subBg,36,36,{fontSize:14,fontWeight:800})}>{f9out}</div>
+            <div style={cb(subBg,36,36,{fontSize:14,fontWeight:800})}>{f9outA}</div>
+            <div style={cb(subBg,22,40,{})}/>
           </div>
           {b9.map(h=>{
             const hs=ms[h.hole]||{};
@@ -317,38 +308,38 @@ function ScoreCard({activeRound,match,teeIdx,scores,saveScore,onBack,setView}){
             const aSS=scoreStyle(hs.away!=null?hs.away:null,h.par);
             return(
               <div key={h.hole} style={{display:"flex",flexDirection:"column"}} onClick={()=>openHole(h.hole)}>
-                <div style={cellBase(isSaved?"#e8f5e8":cellBg,28,36,{fontSize:10,fontWeight:800,color:"#5a7a5a",cursor:isDone?"default":"pointer"})}>{h.hole}</div>
-                <div style={cellBase(cellBg,26,36,{fontSize:10,color:"#555"})}>{h.par}</div>
-                <div style={cellBase(cellBg,22,36,{fontSize:9,color:"#666"})}>{h.yds}</div>
-                <div style={cellBase(cellBg,36,36,{cursor:isDone?"default":"pointer"})}>
+                <div style={cb(isSaved?"#e8f5e8":cellBg,28,36,{fontSize:10,fontWeight:800,color:"#5a7a5a",cursor:"pointer"})}>{h.hole}</div>
+                <div style={cb(cellBg,26,36,{fontSize:10,color:"#555"})}>{h.par}</div>
+                <div style={cb(cellBg,22,36,{fontSize:9,color:"#666"})}>{h.yds}</div>
+                <div style={cb(buzzBg,36,36,{cursor:"pointer"})}>
                   {hs.home!=null?<div style={hSS}>{hs.home}</div>:<span style={{color:"#ccc",fontSize:13}}>—</span>}
                 </div>
-                <div style={cellBase(cellBg,36,36,{cursor:isDone?"default":"pointer"})}>
+                <div style={cb(owlsBg,36,36,{cursor:"pointer"})}>
                   {hs.away!=null?<div style={aSS}>{hs.away}</div>:<span style={{color:"#ccc",fontSize:13}}>—</span>}
                 </div>
-                <div style={cellBase(cellBg,22,40,{fontSize:8,color:"#555"})}>{holeMP(h.hole,ms)}</div>
+                <div style={cb(cellBg,22,40,{fontSize:8,color:"#555"})}>{holeMP(h.hole,ms)}</div>
               </div>
             );
           })}
           <div style={{display:"flex",flexDirection:"column"}}>
-            <div style={cellBase(subBg,28,36,{fontSize:10,fontWeight:800,color:"#5a7a5a"})}>IN</div>
-            <div style={cellBase(subBg,26,36,{fontSize:10,fontWeight:700,color:"#555"})}>{b9.reduce((s,h)=>s+h.par,0)}</div>
-            <div style={cellBase(subBg,22,36,{fontSize:9,fontWeight:700,color:"#666"})}>{b9.reduce((s,h)=>s+h.yds,0)}</div>
-            <div style={cellBase(subBg,36,36,{fontSize:14,fontWeight:800})}>{b9in}</div>
-            <div style={cellBase(subBg,36,36,{fontSize:14,fontWeight:800})}>{b9inA}</div>
-            <div style={cellBase(subBg,22,40,{})}/>
+            <div style={cb(subBg,28,36,{fontSize:10,fontWeight:800,color:"#5a7a5a"})}>IN</div>
+            <div style={cb(subBg,26,36,{fontSize:10,fontWeight:700,color:"#555"})}>{b9.reduce((s,h)=>s+h.par,0)}</div>
+            <div style={cb(subBg,22,36,{fontSize:9,fontWeight:700,color:"#666"})}>{b9.reduce((s,h)=>s+h.yds,0)}</div>
+            <div style={cb(subBg,36,36,{fontSize:14,fontWeight:800})}>{b9in}</div>
+            <div style={cb(subBg,36,36,{fontSize:14,fontWeight:800})}>{b9inA}</div>
+            <div style={cb(subBg,22,40,{})}/>
           </div>
           <div style={{display:"flex",flexDirection:"column"}}>
-            <div style={cellBase(totBg,28,36,{fontSize:10,fontWeight:800,color:"#5a7a5a"})}>TOT</div>
-            <div style={cellBase(totBg,26,36,{fontSize:10,fontWeight:800,color:"#555"})}>{course.par}</div>
-            <div style={cellBase(totBg,22,36,{fontSize:9,fontWeight:800,color:"#666"})}>{tee.total.toLocaleString()}</div>
-            <div style={cellBase(totBg,36,36,{fontSize:14,fontWeight:800})}>{tot}</div>
-            <div style={cellBase(totBg,36,36,{fontSize:14,fontWeight:800})}>{totA}</div>
-            <div style={cellBase(totBg,22,40,{})}/>
+            <div style={cb(totBg,28,36,{fontSize:10,fontWeight:800,color:"#5a7a5a"})}>TOT</div>
+            <div style={cb(totBg,26,36,{fontSize:10,fontWeight:800,color:"#555"})}>{course.par}</div>
+            <div style={cb(totBg,22,36,{fontSize:9,fontWeight:800,color:"#666"})}>{tee.total.toLocaleString()}</div>
+            <div style={cb(totBg,36,36,{fontSize:14,fontWeight:800})}>{tot}</div>
+            <div style={cb(totBg,36,36,{fontSize:14,fontWeight:800})}>{totA}</div>
+            <div style={cb(totBg,22,40,{})}/>
           </div>
         </div>
       </div>
-      {!isDone&&<div style={{textAlign:"center",fontSize:10,color:"#999",padding:"4px 0 14px"}}>Tap any hole to enter scores</div>}
+      <div style={{textAlign:"center",fontSize:10,color:"#999",padding:"4px 0 14px"}}>Tap any hole to enter scores</div>
 
       {editHole&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"flex-end",zIndex:200}} onClick={()=>setEditHole(null)}>
@@ -370,7 +361,7 @@ function ScoreCard({activeRound,match,teeIdx,scores,saveScore,onBack,setView}){
                 </div>
               ))}
             </div>
-            <button style={{width:"100%",marginTop:14,padding:15,background:"#b83050",border:"none",borderRadius:12,color:"#fff",fontFamily:"'Bebas Neue',sans-serif",fontSize:18,letterSpacing:2,cursor:"pointer"}} onClick={commit}>{"Save Hole "+editHole}</button>
+            <button style={{width:"100%",marginTop:14,padding:15,background:"#1a1a1a",border:"none",borderRadius:12,color:"#fff",fontFamily:"'Bebas Neue',sans-serif",fontSize:18,letterSpacing:2,cursor:"pointer"}} onClick={commit}>{"Save Hole "+editHole}</button>
             <button style={{width:"100%",marginTop:8,padding:11,background:"none",border:"1.5px solid #e0d8d0",borderRadius:12,color:"#aaa",fontSize:13,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}} onClick={()=>setEditHole(null)}>Cancel</button>
           </div>
         </div>
@@ -384,76 +375,90 @@ function OverallView({byRound,scores,setView,setActiveRound,setActiveMatch}){
   const pts=totals(scores,byRound);
   return(
     <div style={{fontFamily:"'DM Sans',sans-serif",background:"#f5f0eb",color:"#1a1a1a",minHeight:"100vh",maxWidth:480,margin:"0 auto",paddingBottom:84}}>
-      <div style={{background:"#1a1a1a",padding:"24px 18px 20px",borderBottom:"1.5px solid #333"}}>
-        <div style={{display:"flex",justifyContent:"center",marginBottom:12}}>
-          <img src={BENDERS_LOGO} width={90} height={90} style={{objectFit:"contain"}} alt="Benders Golf"/>
+      <div style={{background:"#1a1a1a",padding:"24px 18px 20px"}}>
+        <div style={{display:"flex",justifyContent:"center",marginBottom:10}}>
+          <img src={BENDERS_LOGO} width={80} height={80} style={{objectFit:"contain"}} alt=""/>
         </div>
         <div style={{textAlign:"center",marginBottom:16}}>
-          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:13,letterSpacing:4,color:"#888"}}>GAMBLE SANDS · JUNE 12–14</div>
+          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:12,letterSpacing:4,color:"#666"}}>GAMBLE SANDS · JUNE 12–14</div>
         </div>
         <div style={{background:"#2a2a2a",borderRadius:14,overflow:"hidden",border:"1px solid #333"}}>
           <div style={{display:"flex",borderBottom:"1px solid #333"}}>
-            <div style={{width:100,padding:"8px 12px"}}/>
-            {ROUNDS.map(r=><div key={r.id} style={{flex:1,padding:"8px 4px",textAlign:"center",fontSize:9,fontWeight:800,textTransform:"uppercase",letterSpacing:0.5,color:"#666"}}>{r.label}</div>)}
-            <div style={{width:50,padding:"8px 4px",textAlign:"center",fontSize:9,fontWeight:800,textTransform:"uppercase",letterSpacing:0.5,color:"#666"}}>TOT</div>
+            <div style={{width:72,padding:"8px 12px"}}/>
+            {ROUNDS.map(r=><div key={r.id} style={{flex:1,padding:"8px 4px",textAlign:"center",fontSize:9,fontWeight:800,textTransform:"uppercase",letterSpacing:0.5,color:"#555"}}>{r.label}</div>)}
+            <div style={{width:50,padding:"8px 4px",textAlign:"center",fontSize:9,fontWeight:800,textTransform:"uppercase",letterSpacing:0.5,color:"#555"}}>TOT</div>
           </div>
           {[{img:BUZZ_IMG,color:"#b83050",side:"home"},{img:OWLS_IMG,color:"#9b7010",side:"away"}].map(({img,color,side})=>(
-            <div key={side} style={{display:"flex",alignItems:"center"}}>
-              <div style={{width:100,padding:"10px 12px",display:"flex",alignItems:"center"}}>
-                <img src={img} width={44} height={44} style={{borderRadius:"50%",objectFit:"cover",flexShrink:0}} alt=""/>
+            <div key={side} style={{display:"flex",alignItems:"center",borderBottom:"1px solid #333"}}>
+              <div style={{width:72,padding:"10px 12px",display:"flex",alignItems:"center"}}>
+                <img src={img} width={44} height={44} style={{borderRadius:"50%",objectFit:"cover"}} alt=""/>
               </div>
               {ROUNDS.map(r=>{
                 const rt=roundTotals(scores,byRound[r.id]);
                 const val=side==="home"?rt.b:rt.o;
-                return <div key={r.id} style={{flex:1,textAlign:"center",fontFamily:"'Bebas Neue',sans-serif",fontSize:26,color:val>0?color:"#444"}}>{val||0}</div>;
+                return <div key={r.id} style={{flex:1,textAlign:"center",fontFamily:"'Bebas Neue',sans-serif",fontSize:28,color:val>0?color:"#444"}}>{val||0}</div>;
               })}
-              <div style={{width:50,textAlign:"center",fontFamily:"'Bebas Neue',sans-serif",fontSize:32,color}}>{side==="home"?pts.b:pts.o}</div>
+              <div style={{width:50,textAlign:"center",fontFamily:"'Bebas Neue',sans-serif",fontSize:34,color}}>{side==="home"?pts.b:pts.o}</div>
             </div>
           ))}
         </div>
       </div>
 
-      {ROUNDS.map(r=>{
-        const rm=byRound[r.id],rt=roundTotals(scores,rm);
-        return(
-          <div key={r.id} style={{margin:"14px 14px 0"}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingBottom:8,borderBottom:"1.5px solid #e8e0d8",marginBottom:6}}>
-              <div>
-                <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:18,letterSpacing:1}}>{r.label}</span>
-                <span style={{fontSize:11,color:"#555",marginLeft:8,fontWeight:600}}>{r.fmt}</span>
-              </div>
-              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:20,letterSpacing:1}}>
-                <span style={{color:"#b83050"}}>{rt.b}</span>
-                <span style={{color:"#aaa"}}> – </span>
-                <span style={{color:"#9b7010"}}>{rt.o}</span>
-              </div>
-            </div>
-            {rm.map(m=>{
-              const mst=matchStatus(scores,m.id),res=mResult(mst),hN=nl(m.home),aN=nl(m.away),rdy=ready(m);
-              const sColor=stColor(mst);
-              const resultStr=mst.st==="done"?(mst.leader?(mst.leader==="home"?hN:aN)+" "+Math.abs(mst.lead)+"&"+(18-mst.played):"Halved"):null;
-              return(
-                <div key={m.id} style={{padding:"10px 0",borderBottom:"1px solid #f0ece6",cursor:"pointer"}} onClick={()=>{setActiveRound(r.id);setActiveMatch(m.id);setView("scorecard");}}>
-                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                    <div style={{display:"flex",alignItems:"center",gap:8,flex:1,flexWrap:"wrap"}}>
-                      <span style={{fontWeight:700,fontSize:13,color:rdy?"#b83050":"#aaa"}}>{hN}</span>
-                      <span style={{fontSize:9,color:"#aaa"}}>vs</span>
-                      <span style={{fontWeight:700,fontSize:13,color:rdy?"#9b7010":"#aaa"}}>{aN}</span>
-                    </div>
-                    {resultStr&&<div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:18,letterSpacing:1,color:sColor,flexShrink:0}}>{resultStr}</div>}
-                    {!resultStr&&mst.st==="live"&&<div style={{fontSize:10,color:sColor,fontWeight:700,flexShrink:0}}>{Math.abs(mst.lead)>0?Math.abs(mst.lead)+"UP":"AS"}</div>}
-                  </div>
-                  {mst.st!=="ns"&&!resultStr&&(
-                    <div style={{fontSize:11,marginTop:3,color:sColor,fontWeight:600}}>{stLabel(mst,hN,aN)}</div>
-                  )}
-                  {resultStr&&<div style={{fontSize:11,marginTop:2,color:sColor,fontWeight:600}}>{stLabel(mst,hN,aN)}</div>}
-                  {!rdy&&<div style={{fontSize:10,color:"#aaa",marginTop:2}}>Lineup not set</div>}
+      <div style={{padding:"0 14px"}}>
+        {ROUNDS.map(r=>{
+          const rm=byRound[r.id],rt=roundTotals(scores,rm);
+          return(
+            <div key={r.id} style={{marginTop:16,background:"#fff",borderRadius:14,border:"1.5px solid #e8e0d8",overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 16px",borderBottom:"1px solid #f0ece6",background:"#fafaf8"}}>
+                <div>
+                  <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:18,letterSpacing:1,color:"#1a1a1a"}}>{r.label}</span>
+                  <span style={{fontSize:11,color:"#555",marginLeft:8,fontWeight:600}}>{r.fmt}</span>
                 </div>
-              );
-            })}
-          </div>
-        );
-      })}
+                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:20,letterSpacing:1}}>
+                  <span style={{color:"#b83050"}}>{rt.b}</span>
+                  <span style={{color:"#ccc"}}> – </span>
+                  <span style={{color:"#9b7010"}}>{rt.o}</span>
+                </div>
+              </div>
+              {rm.map((m,i)=>{
+                const mst=matchStatus(scores,m.id),res=mResult(mst),hN=nl(m.home),aN=nl(m.away),rdy=ready(m);
+                const sColor=stColor(mst);
+                const resultStr=mst.st==="done"?(mst.leader?(mst.leader==="home"?hN:aN)+" "+Math.abs(mst.lead)+"&"+(18-mst.played):"Halved"):null;
+                const liveStr=mst.st==="live"?(Math.abs(mst.lead)>0?(mst.leader==="home"?hN:aN)+" "+Math.abs(mst.lead)+"UP":"AS"):null;
+                return(
+                  <div key={m.id} style={{padding:"12px 16px",borderBottom:i<rm.length-1?"1px solid #f5f2ee":"none",cursor:"pointer",display:"flex",alignItems:"center",gap:10}} onClick={()=>{setActiveRound(r.id);setActiveMatch(m.id);setView("scorecard");}}>
+                    <div style={{flex:1,textAlign:"center"}}>
+                      {rdy?(
+                        <>
+                          <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+                            <span style={{fontWeight:700,fontSize:13,color:"#b83050"}}>{hN}</span>
+                          </div>
+                          <div style={{fontSize:10,color:"#999",margin:"2px 0",fontWeight:600}}>vs</div>
+                          <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+                            <span style={{fontWeight:700,fontSize:13,color:"#9b7010"}}>{aN}</span>
+                          </div>
+                        </>
+                      ):(
+                        <div style={{fontSize:11,color:"#bbb"}}>Lineup not set</div>
+                      )}
+                    </div>
+                    <div style={{textAlign:"right",minWidth:70}}>
+                      {resultStr&&<div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:18,color:sColor,letterSpacing:0.5}}>{resultStr}</div>}
+                      {liveStr&&<div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:16,color:sColor,letterSpacing:0.5}}>{liveStr}</div>}
+                      {mst.st==="ns"&&rdy&&<div style={{fontSize:10,color:"#bbb"}}>Not started</div>}
+                      {res&&<div style={{fontSize:10,color:"#888",marginTop:2}}>
+                        <span style={{color:res.h>0?"#3a7a3a":"#ccc",fontWeight:700}}>{res.h}pt</span>
+                        <span style={{color:"#ccc"}}> – </span>
+                        <span style={{color:res.a>0?"#3a7a3a":"#ccc",fontWeight:700}}>{res.a}pt</span>
+                      </div>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
       <div style={{height:20}}/>
       <NavBar view="overall" setView={setView}/>
     </div>
@@ -490,24 +495,27 @@ export default function App(){
     </div>
   );
 
-  if(!authed){
-    function tryPin(p){
-      if(p.toUpperCase()==="BENDERS"){
-        try{localStorage.setItem("benders_auth","yes");}catch(e){}
-        setFading(true);
-        setTimeout(()=>{setAuthed(true);setFading(false);},400);
-      }else{
-        setShake(true);
-        setTimeout(()=>{setShake(false);setPin("");},600);
-      }
+  function tryPin(p){
+    if(p.toUpperCase()==="BENDERS"){
+      try{localStorage.setItem("benders_auth","yes");}catch(e){}
+      setFading(true);
+      setTimeout(()=>{setAuthed(true);setFading(false);},400);
+    }else{
+      setShake(true);
+      setTimeout(()=>{setShake(false);setPin("");},600);
     }
+  }
+
+  if(!authed){
     return(
-      <div style={{fontFamily:"'DM Sans',sans-serif",background:"#1a1a1a",minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:20,padding:"32px 24px",opacity:fading?0:1,transition:"opacity 0.4s",boxSizing:"border-box",width:"100%",maxWidth:480,margin:"0 auto"}}>
-        <img src={BENDERS_LOGO} width={120} height={120} style={{objectFit:"contain"}} alt="Benders Golf"/>
-        <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:42,letterSpacing:6,color:"#fff",textAlign:"center",lineHeight:1}}>BENDERS</div>
-        <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:42,letterSpacing:6,color:"#9b7010",textAlign:"center",lineHeight:1,marginTop:-16}}>2026</div>
-        <div style={{fontSize:12,color:"#666",textAlign:"center"}}>Gamble Sands · June 12–14</div>
-        <div style={{width:"100%",maxWidth:300,display:"flex",flexDirection:"column",gap:10,marginTop:8,alignSelf:"center"}}>
+      <div style={{fontFamily:"'DM Sans',sans-serif",background:"#1a1a1a",minHeight:"100vh",width:"100%",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16,padding:"32px 24px",boxSizing:"border-box",opacity:fading?0:1,transition:"opacity 0.4s"}}>
+        <img src={BENDERS_LOGO} width={110} height={110} style={{objectFit:"contain"}} alt=""/>
+        <div style={{textAlign:"center"}}>
+          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:44,letterSpacing:6,color:"#fff",lineHeight:1}}>BENDERS</div>
+          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:44,letterSpacing:6,color:"#9b7010",lineHeight:1}}>2026</div>
+        </div>
+        <div style={{fontSize:11,color:"#555",letterSpacing:2,textTransform:"uppercase"}}>Gamble Sands · June 12–14</div>
+        <div style={{width:"100%",maxWidth:280,display:"flex",flexDirection:"column",gap:10,marginTop:8}}>
           <input type="text" placeholder="Password" value={pin}
             onChange={e=>setPin(e.target.value)}
             onKeyDown={e=>e.key==="Enter"&&tryPin(pin)}
@@ -517,14 +525,14 @@ export default function App(){
               transform:shake?"translateX(6px)":"none",transition:"border-color 0.2s"}}
             autoCapitalize="none"/>
           <button onClick={()=>tryPin(pin)}
-            style={{width:"100%",padding:14,background:"#b83050",border:"none",borderRadius:12,color:"#fff",fontFamily:"'Bebas Neue',sans-serif",fontSize:20,letterSpacing:3,cursor:"pointer"}}>
+            style={{width:"100%",padding:"11px",background:"#b83050",border:"none",borderRadius:12,color:"#fff",fontFamily:"'Bebas Neue',sans-serif",fontSize:17,letterSpacing:3,cursor:"pointer"}}>
             ENTER
           </button>
         </div>
-        <div style={{display:"flex",alignItems:"center",gap:16,marginTop:8}}>
-          <img src={BUZZ_IMG} width={44} height={44} style={{borderRadius:"50%",objectFit:"cover"}} alt=""/>
-          <span style={{color:"#444",fontSize:18,fontWeight:300}}>vs</span>
-          <img src={OWLS_IMG} width={44} height={44} style={{borderRadius:"50%",objectFit:"cover"}} alt=""/>
+        <div style={{display:"flex",alignItems:"center",gap:16,marginTop:4}}>
+          <img src={BUZZ_IMG} width={40} height={40} style={{borderRadius:"50%",objectFit:"cover"}} alt=""/>
+          <span style={{color:"#333",fontSize:16}}>vs</span>
+          <img src={OWLS_IMG} width={40} height={40} style={{borderRadius:"50%",objectFit:"cover"}} alt=""/>
         </div>
       </div>
     );
@@ -543,25 +551,22 @@ export default function App(){
     });
   }
 
-  if(view==="overall")return(
-    <OverallView byRound={byRound} scores={scores} setView={setView} setActiveRound={setActiveRound} setActiveMatch={setActiveMatch}/>
-  );
+  if(view==="overall")return <OverallView byRound={byRound} scores={scores} setView={setView} setActiveRound={setActiveRound} setActiveMatch={setActiveMatch}/>;
 
   if(view==="scorecard"&&activeRound&&activeMatch){
     const match=byRound[activeRound].find(m=>m.id===activeMatch);
-    return <ScoreCard activeRound={activeRound} match={match} teeIdx={teeByRound[activeRound]}
-      scores={scores} saveScore={saveScore} onBack={()=>setView("round")} setView={setView}/>;
+    return <ScoreCard activeRound={activeRound} match={match} teeIdx={teeByRound[activeRound]} scores={scores} saveScore={saveScore} onBack={()=>setView("round")} setView={setView}/>;
   }
 
   if(view==="round"&&activeRound){
     const rDef=ROUNDS.find(r=>r.id===activeRound),course=COURSES[rDef.course];
     const teeIdx=teeByRound[activeRound],tee=course.tees[teeIdx],rm=byRound[activeRound];
+    const pts=totals(scores,byRound);
     return(
       <div style={{fontFamily:"'DM Sans',sans-serif",background:"#f5f0eb",color:"#1a1a1a",minHeight:"100vh",maxWidth:480,margin:"0 auto",paddingBottom:84}}>
         <PHdr title={rDef.label} onBack={()=>setView("matches")}/>
         <div style={{background:"#fff",borderBottom:"1.5px solid #e8e0d8",padding:"14px 16px"}}>
-          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:16,letterSpacing:1,color:"#5a7a5a",marginBottom:2}}>{course.name} Course · {rDef.date}</div>
-          <div style={{fontSize:12,color:"#555",fontWeight:600,marginBottom:10}}>{rDef.fmt}</div>
+          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:15,letterSpacing:1,color:"#555",marginBottom:2}}>{course.name} Course · {rDef.date} · {rDef.fmt}</div>
           <TeePicker course={course} teeIdx={teeIdx} setTeeIdx={i=>setTeeByRound(prev=>({...prev,[activeRound]:i}))}/>
         </div>
         {rm.map((m,idx)=>{
@@ -570,7 +575,7 @@ export default function App(){
           return(
             <div key={m.id} style={{background:"#fff",border:"1.5px solid #e8e0d8",borderRadius:14,padding:14,margin:"10px 14px 0",boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-                <span style={{fontSize:9,color:"#5a7a5a",textTransform:"uppercase",letterSpacing:1.5,fontWeight:700}}>{m.label}</span>
+                <span style={{fontSize:9,color:"#555",textTransform:"uppercase",letterSpacing:1.5,fontWeight:700}}>{m.label}</span>
                 {rdy?<span style={pill(mst.st==="live"?"live":mst.st==="done"?"done":"set")}>{mst.st==="live"?"● Live":mst.st==="done"?"Final":"Ready"}</span>
                   :<span style={pill("pre")}>Not Set</span>}
               </div>
@@ -578,26 +583,24 @@ export default function App(){
               {rdy&&(
                 <div onClick={()=>{setActiveMatch(m.id);setView("scorecard");}}>
                   <div style={{height:1,background:"#f0ece6",margin:"12px 0"}}/>
-                  <div style={{display:"flex",alignItems:"center",gap:8}}>
-                    <div style={{display:"flex",alignItems:"center",gap:6,flex:1}}>
-                      <div style={{width:8,height:8,borderRadius:"50%",background:"#b83050",flexShrink:0}}/>
-                      <span style={{fontSize:13,fontWeight:700,color:"#b83050"}}>{hN}</span>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                    <div style={{textAlign:"center",flex:1}}>
+                      <div style={{fontWeight:700,fontSize:13,color:"#b83050"}}>{hN}</div>
+                      <div style={{fontSize:10,color:"#999",margin:"2px 0"}}>vs</div>
+                      <div style={{fontWeight:700,fontSize:13,color:"#9b7010"}}>{aN}</div>
                     </div>
-                    <div style={{fontSize:9,color:"#ccc",fontWeight:900}}>VS</div>
-                    <div style={{display:"flex",alignItems:"center",gap:6,flex:1,justifyContent:"flex-end",flexDirection:"row-reverse"}}>
-                      <div style={{width:8,height:8,borderRadius:"50%",background:"#9b7010",flexShrink:0}}/>
-                      <span style={{fontSize:13,fontWeight:700,color:"#9b7010"}}>{aN}</span>
+                    <div style={{textAlign:"right"}}>
+                      {mst.st!=="ns"&&<div style={{fontSize:12,fontWeight:600,color:sColor,marginBottom:4}}>{stLabel(mst,hN,aN)}</div>}
+                      {res&&<div style={{fontSize:11}}>
+                        <span style={{color:res.h>0?"#3a7a3a":"#ccc",fontWeight:700}}>{res.h}pt</span>
+                        <span style={{color:"#aaa"}}> – </span>
+                        <span style={{color:res.a>0?"#3a7a3a":"#ccc",fontWeight:700}}>{res.a}pt</span>
+                      </div>}
                     </div>
                   </div>
-                  {mst.st!=="ns"&&<div style={{fontSize:11,marginTop:6,fontWeight:600,color:sColor}}>{stLabel(mst,hN,aN)}</div>}
-                  {res&&<div style={{fontSize:11,marginTop:3}}>
-                    <span style={{color:res.h>0?"#3a7a3a":"#ccc",fontWeight:700}}>{res.h} pt</span>
-                    <span style={{color:"#aaa"}}> – </span>
-                    <span style={{color:res.a>0?"#3a7a3a":"#ccc",fontWeight:700}}>{res.a} pt</span>
-                  </div>}
-                  <div style={{marginTop:10,width:"100%",padding:"10px 0",background:"none",border:"1.5px solid #1a1a1a",borderRadius:8,textAlign:"center",cursor:"pointer"}}>
+                  <button style={{marginTop:12,width:"100%",padding:"10px 0",background:"none",border:"1.5px solid #1a1a1a",borderRadius:8,cursor:"pointer"}}>
                     <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:16,letterSpacing:3,color:"#1a1a1a"}}>SCORECARD</span>
-                  </div>
+                  </button>
                 </div>
               )}
             </div>
@@ -612,7 +615,7 @@ export default function App(){
   const bPct=Math.min(100,(pts.b/12)*100),oPct=Math.min(100,(pts.o/12)*100);
   return(
     <div style={{fontFamily:"'DM Sans',sans-serif",background:"#f5f0eb",color:"#1a1a1a",minHeight:"100vh",maxWidth:480,margin:"0 auto",paddingBottom:84}}>
-      <div style={{padding:"0 14px",display:"flex",flexDirection:"column",gap:10,paddingTop:10}}>
+      <div style={{padding:"16px 14px 0",display:"flex",flexDirection:"column",gap:12}}>
         {ROUNDS.map(r=>{
           const rm=byRound[r.id],course=COURSES[r.course],tee=course.tees[teeByRound[r.id]];
           const done=rm.filter(m=>matchStatus(scores,m.id).st==="done").length;
@@ -620,25 +623,29 @@ export default function App(){
           const set=rm.filter(m=>ready(m)).length;
           let rb=0,ro=0;rm.forEach(m=>{const res=mResult(matchStatus(scores,m.id));if(res){rb+=res.h;ro+=res.a;}});
           return(
-            <div key={r.id} style={{background:"#fff",border:"1.5px solid #e8e0d8",borderRadius:14,padding:"14px 16px",display:"flex",alignItems:"center",cursor:"pointer",boxShadow:"0 1px 4px rgba(0,0,0,0.06)"}} onClick={()=>{setActiveRound(r.id);setView("round");}}>
-              <div style={{flex:1}}>
-                <div style={{fontSize:9,color:"#5a7a5a",textTransform:"uppercase",letterSpacing:1.5,fontWeight:700}}>{r.date}</div>
-                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:22,letterSpacing:1,lineHeight:1.1,marginTop:1}}>{r.label}</div>
-                <div style={{fontSize:13,color:"#444",fontWeight:600,marginTop:1}}>{r.fmt}</div>
-                <div style={{fontSize:10,color:"#666",marginTop:3,display:"flex",alignItems:"center",gap:5}}>
-                  <span style={{display:"inline-block",width:9,height:9,borderRadius:"50%",background:tee.color,border:"1px solid #aaa",flexShrink:0}}/>
-                  {course.name} · {tee.label} · {tee.total.toLocaleString()} yds
+            <div key={r.id} style={{background:"#fff",border:"1.5px solid #e8e0d8",borderRadius:16,overflow:"hidden",cursor:"pointer",boxShadow:"0 2px 8px rgba(0,0,0,0.06)",backgroundImage:"repeating-linear-gradient(0deg,transparent,transparent 18px,rgba(0,0,0,0.025) 18px,rgba(0,0,0,0.025) 19px),repeating-linear-gradient(90deg,transparent,transparent 18px,rgba(0,0,0,0.015) 18px,rgba(0,0,0,0.015) 19px)"}} onClick={()=>{setActiveRound(r.id);setView("round");}}>
+              <div style={{padding:"18px 18px 16px"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                  <div>
+                    <div style={{fontSize:10,color:"#555",textTransform:"uppercase",letterSpacing:2,fontWeight:700,marginBottom:4}}>{r.date}</div>
+                    <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:28,letterSpacing:1.5,lineHeight:1,color:"#1a1a1a"}}>{r.label}</div>
+                    <div style={{fontSize:13,color:"#333",fontWeight:700,marginTop:3}}>{r.fmt}</div>
+                    <div style={{fontSize:10,color:"#666",marginTop:4,display:"flex",alignItems:"center",gap:5}}>
+                      <span style={{display:"inline-block",width:9,height:9,borderRadius:"50%",background:tee.color,border:"1px solid #aaa",flexShrink:0}}/>
+                      {course.name} · {tee.label} · {tee.total.toLocaleString()} yds
+                    </div>
+                  </div>
+                  <div style={{textAlign:"right"}}>
+                    <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:28,letterSpacing:2,marginBottom:6}}>
+                      <span style={{color:"#b83050"}}>{rb}</span><span style={{color:"#ccc",margin:"0 3px"}}>–</span><span style={{color:"#9b7010"}}>{ro}</span>
+                    </div>
+                    {done===rm.length&&set===rm.length&&rm.length>0?<span style={pill("done")}>Final</span>
+                      :live>0?<span style={pill("live")}>● Live</span>
+                      :set===0?<span style={pill("pre")}>Not Set</span>
+                      :set<rm.length?<span style={pill("partial")}>Partial</span>
+                      :<span style={pill("set")}>Lineups Set</span>}
+                  </div>
                 </div>
-              </div>
-              <div style={{textAlign:"right"}}>
-                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:24,letterSpacing:2,marginBottom:4}}>
-                  <span style={{color:"#b83050"}}>{rb}</span><span style={{color:"#ccc",margin:"0 2px"}}>–</span><span style={{color:"#9b7010"}}>{ro}</span>
-                </div>
-                {done===rm.length&&set===rm.length&&rm.length>0?<span style={pill("done")}>Final</span>
-                  :live>0?<span style={pill("live")}>● Live</span>
-                  :set===0?<span style={pill("pre")}>Not Set</span>
-                  :set<rm.length?<span style={pill("partial")}>Partial</span>
-                  :<span style={pill("set")}>Lineups Set</span>}
               </div>
             </div>
           );
