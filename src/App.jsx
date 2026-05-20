@@ -98,7 +98,7 @@ function hiloHoleResult(hs) {
   const buzzLow=Math.min(hs.h1,hs.h2), owlsLow=Math.min(hs.a1,hs.a2);
   const buzzHi=Math.max(hs.h1,hs.h2), owlsHi=Math.max(hs.a1,hs.a2);
   const lowPt = buzzLow<owlsLow?"buzz":buzzLow>owlsLow?"owls":"push";
-  const hiPt  = buzzHi>owlsHi?"buzz":buzzHi<owlsHi?"owls":"push";
+  const hiPt  = buzzHi<owlsHi?"buzz":buzzHi>owlsHi?"owls":"push";
   return {lowPt, hiPt,
     buzzPts:(lowPt==="buzz"?1:lowPt==="push"?0.5:0)+(hiPt==="buzz"?1:hiPt==="push"?0.5:0),
     owlsPts:(lowPt==="owls"?1:lowPt==="push"?0.5:0)+(hiPt==="owls"?1:hiPt==="push"?0.5:0)};
