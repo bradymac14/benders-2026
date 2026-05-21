@@ -279,19 +279,42 @@ function HiLoScoreCard({activeRound,match,teeIdx,scores,saveScore,onBack,setView
     const hs=ms[h.hole]||{};
     const r=hiloHoleResult(hs);
     const isSaved=saved===h.hole;
-    const buzzWins=r&&r.buzzWinsHole;
-    const owlsWins=r&&r.owlsWinsHole;
-    const buzzBg=buzzWins?"#fff0f3":isSaved?"#e8f5e8":"#fffcfa";
-    const owlsBg=owlsWins?"#fff8e8":"#fafaf8";
+
+    // Determine which individual scores won their point
+    const hasAll=hs.h1!=null&&hs.h2!=null&&hs.a1!=null&&hs.a2!=null;
+    const buzzLow=hasAll?Math.min(hs.h1,hs.h2):null;
+    const owlsLow=hasAll?Math.min(hs.a1,hs.a2):null;
+    const buzzHi=hasAll?Math.max(hs.h1,hs.h2):null;
+    const owlsHi=hasAll?Math.max(hs.a1,hs.a2):null;
+
+    // Low point winner — highlight the winning low scorer
+    const buzzWinsLow=hasAll&&buzzLow<owlsLow;
+    const owlsWinsLow=hasAll&&owlsLow<buzzLow;
+    // Hi point winner — highlight the winning hi scorer (lower score wins)
+    const buzzWinsHi=hasAll&&buzzHi<owlsHi;
+    const owlsWinsHi=hasAll&&owlsHi<buzzHi;
+
+    // Which individual player is the low/hi for each team
+    const h1isLow=hasAll&&hs.h1<=hs.h2;
+    const h2isLow=hasAll&&hs.h2<=hs.h1;
+    const a1isLow=hasAll&&hs.a1<=hs.a2;
+    const a2isLow=hasAll&&hs.a2<=hs.a1;
+
+    // Highlight bg per player
+    const h1bg=(buzzWinsLow&&h1isLow)?"#e8f5e8":(buzzWinsHi&&!h1isLow)?"#e8f5e8":"#fffcfa";
+    const h2bg=(buzzWinsLow&&h2isLow)?"#e8f5e8":(buzzWinsHi&&!h2isLow)?"#e8f5e8":"#fffcfa";
+    const a1bg=(owlsWinsLow&&a1isLow)?"#fef3d8":(owlsWinsHi&&!a1isLow)?"#fef3d8":"#fafaf8";
+    const a2bg=(owlsWinsLow&&a2isLow)?"#fef3d8":(owlsWinsHi&&!a2isLow)?"#fef3d8":"#fafaf8";
+
     return(
       <div style={{display:"flex",flexDirection:"column"}} onClick={()=>openHole(h.hole)}>
         <div style={cb(isSaved?"#e8f5e8":"#fff",26,38,{fontSize:10,fontWeight:800,color:"#5a7a5a",cursor:"pointer"})}>{h.hole}</div>
         <div style={cb("#fff",22,38,{fontSize:9,color:"#555"})}>{h.par}</div>
         <div style={cb("#fff",20,38,{fontSize:8,color:"#666"})}>{h.yds}</div>
-        <div style={cb(buzzBg,32,38,{cursor:"pointer"})}>{hs.h1!=null?<div style={scoreStyle(hs.h1,h.par)}>{hs.h1}</div>:<span style={{color:"#ccc",fontSize:11}}>—</span>}</div>
-        <div style={{...cb(buzzBg,32,38,{cursor:"pointer"}),borderBottom:"2px solid #e0d8d0"}}>{hs.h2!=null?<div style={scoreStyle(hs.h2,h.par)}>{hs.h2}</div>:<span style={{color:"#ccc",fontSize:11}}>—</span>}</div>
-        <div style={cb(owlsBg,32,38,{cursor:"pointer"})}>{hs.a1!=null?<div style={scoreStyle(hs.a1,h.par)}>{hs.a1}</div>:<span style={{color:"#ccc",fontSize:11}}>—</span>}</div>
-        <div style={cb(owlsBg,32,38,{cursor:"pointer"})}>{hs.a2!=null?<div style={scoreStyle(hs.a2,h.par)}>{hs.a2}</div>:<span style={{color:"#ccc",fontSize:11}}>—</span>}</div>
+        <div style={cb(h1bg,32,38,{cursor:"pointer"})}>{hs.h1!=null?<div style={scoreStyle(hs.h1,h.par)}>{hs.h1}</div>:<span style={{color:"#ccc",fontSize:11}}>—</span>}</div>
+        <div style={{...cb(h2bg,32,38,{cursor:"pointer"}),borderBottom:"2px solid #e0d8d0"}}>{hs.h2!=null?<div style={scoreStyle(hs.h2,h.par)}>{hs.h2}</div>:<span style={{color:"#ccc",fontSize:11}}>—</span>}</div>
+        <div style={cb(a1bg,32,38,{cursor:"pointer"})}>{hs.a1!=null?<div style={scoreStyle(hs.a1,h.par)}>{hs.a1}</div>:<span style={{color:"#ccc",fontSize:11}}>—</span>}</div>
+        <div style={cb(a2bg,32,38,{cursor:"pointer"})}>{hs.a2!=null?<div style={scoreStyle(hs.a2,h.par)}>{hs.a2}</div>:<span style={{color:"#ccc",fontSize:11}}>—</span>}</div>
       </div>
     );
   }
