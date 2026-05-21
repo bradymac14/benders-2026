@@ -31,18 +31,21 @@ const SANDS = {
 const COURSES = { scarecrow: SCARECROW, sands: SANDS };
 const BGC = ["Brady","Bryce","Kevin","Kirby","Scott","Travis"];
 const OWL = ["Nick","Corey","Ryan","Neil","Michael","Tom"];
+
+// Round formats: hilo=Hi/Lo 4-player, scramble=2-man scramble, singles=1v1 match play
 const ROUNDS = [
-  { id:"r1", label:"Round 1", date:"Jun 12", fmt:"Hi/Lo Foursomes",    course:"scarecrow", slots:3, pps:2, hilo:true },
-  { id:"r2", label:"Round 2", date:"Jun 13", fmt:"Best Ball (4-ball)", course:"sands",     slots:3, pps:2, hilo:false },
-  { id:"r3", label:"Round 3", date:"Jun 14", fmt:"Singles Match Play", course:"scarecrow", slots:6, pps:1, hilo:false },
+  { id:"r1", label:"Round 1", date:"Jun 12", fmt:"Hi/Lo Foursomes",    course:"scarecrow", slots:3, pps:2, type:"hilo" },
+  { id:"r2", label:"Round 2", date:"Jun 13", fmt:"Scramble (Best Ball)", course:"sands",   slots:3, pps:2, type:"scramble" },
+  { id:"r3", label:"Round 3", date:"Jun 14", fmt:"Singles Match Play", course:"scarecrow", slots:6, pps:1, type:"singles" },
 ];
 
 function emptySlots(r){return Array.from({length:r.slots},(_,i)=>({id:r.id+"m"+(i+1),label:"Match "+(i+1),home:Array(r.pps).fill(""),away:Array(r.pps).fill("")}));}
 function initByRound(){const m={};ROUNDS.forEach(r=>{m[r.id]=emptySlots(r);});return m;}
 function loadState(){try{const s=localStorage.getItem("benders2026");if(s)return JSON.parse(s);}catch(e){}return null;}
 
-function matchStatus(scores,mid){
-  const ms=scores[mid]||{};let hw=0,aw=0,played=0;
+// ── MATCH PLAY (singles + scramble) ─────────────────────────────────────────
+function matchStatus(scores, mid) {
+  const ms=scores[mid]||{}; let hw=0,aw=0,played=0;
   for(let h=1;h<=18;h++){const s=ms[h];if(!s||s.home==null||s.away==null)break;played++;if(s.home<s.away)hw++;else if(s.away<s.home)aw++;}
   const lead=hw-aw,left=18-played,leader=lead>0?"home":lead<0?"away":null;
   if(played===0)return{st:"ns",played,lead,leader};
@@ -61,27 +64,65 @@ function mResult(ms){
   if(!ms.leader)return{h:0.5,a:0.5};
   return{h:ms.leader==="home"?1:0,a:ms.leader==="away"?1:0};
 }
+
+// ── HI/LO SCORING ────────────────────────────────────────────────────────────
+// Each hole: 1pt low ball (lower of two lows wins), 1pt hi ball (lower of two highs wins)
+// After 18 holes: team with more total pts wins 1 match pt. Tie = 0.5 each.
+function hiloHoleResult(hs){
+  if(hs.h1==null||hs.h2==null||hs.a1==null||hs.a2==null)return null;
+  const buzzLow=Math.min(hs.h1,hs.h2),owlsLow=Math.min(hs.a1,hs.a2);
+  const buzzHi=Math.max(hs.h1,hs.h2),owlsHi=Math.max(hs.a1,hs.a2);
+  const lowPt=buzzLow<owlsLow?"buzz":buzzLow>owlsLow?"owls":"push";
+  const hiPt=buzzHi<owlsHi?"buzz":buzzHi>owlsHi?"owls":"push";
+  const bp=(lowPt==="buzz"?1:lowPt==="push"?0.5:0)+(hiPt==="buzz"?1:hiPt==="push"?0.5:0);
+  const op=(lowPt==="owls"?1:lowPt==="push"?0.5:0)+(hiPt==="owls"?1:hiPt==="push"?0.5:0);
+  return{lowPt,hiPt,bp,op,buzzWinsHole:bp>op,owlsWinsHole:op>bp};
+}
+function hiloMatchStatus(scores,mid){
+  const ms=scores[mid]||{};let bp=0,op=0,played=0;
+  for(let h=1;h<=18;h++){
+    const hs=ms[h];
+    if(!hs||hs.h1==null||hs.h2==null||hs.a1==null||hs.a2==null)break;
+    played++;
+    const r=hiloHoleResult(hs);
+    if(r){bp+=r.bp;op+=r.op;}
+  }
+  // Convert to match result: winner gets 1pt, tie gets 0.5 each
+  const matchH=played===18?(bp>op?1:bp===op?0.5:0):null;
+  const matchA=played===18?(op>bp?1:bp===op?0.5:0):null;
+  return{st:played===18?"done":played===0?"ns":"live",played,bp,op,matchH,matchA};
+}
+function hiloResult(scores,mid){
+  const mst=hiloMatchStatus(scores,mid);
+  if(mst.st!=="done")return null;
+  return{h:mst.matchH,a:mst.matchA};
+}
+
+// ── TOTALS ───────────────────────────────────────────────────────────────────
 function totals(scores,byRound){
   let b=0,o=0;
   for(const rDef of ROUNDS){
     const rm=byRound[rDef.id];
-    if(rDef.hilo){
-      for(const m of rm){const mst=hiloMatchStatus(scores,m.id);b+=mst.bp||0;o+=mst.op||0;}
-    } else {
-      for(const m of rm){const r=mResult(matchStatus(scores,m.id));if(r){b+=r.h;o+=r.a;}}
+    for(const m of rm){
+      let r=null;
+      if(rDef.type==="hilo") r=hiloResult(scores,m.id);
+      else r=mResult(matchStatus(scores,m.id));
+      if(r){b+=r.h;o+=r.a;}
     }
   }
   return{b,o};
 }
-function roundTotals(scores,matches,hilo=false){
+function roundTotals(scores,matches,type){
   let b=0,o=0;
-  if(hilo){
-    for(const m of matches){const mst=hiloMatchStatus(scores,m.id);b+=mst.bp||0;o+=mst.op||0;}
-  } else {
-    for(const m of matches){const r=mResult(matchStatus(scores,m.id));if(r){b+=r.h;o+=r.a;}}
+  for(const m of matches){
+    let r=null;
+    if(type==="hilo") r=hiloResult(scores,m.id);
+    else r=mResult(matchStatus(scores,m.id));
+    if(r){b+=r.h;o+=r.a;}
   }
   return{b,o};
 }
+
 function nl(arr){return arr.filter(Boolean).join(" / ")||"—";}
 function ready(m){return m.home.every(Boolean)&&m.away.every(Boolean);}
 function holeMP(upTo,ms){
@@ -91,56 +132,15 @@ function holeMP(upTo,ms){
 }
 function sumS(team,holes,ms){return holes.reduce((s,h)=>s+(ms[h.hole]?.[team]||0),0);}
 
-// Hi/Lo scoring: each hole worth 2 pts (1 low ball, 1 hi ball)
-// scores object for hilo: { hole: { h1, h2, a1, a2 } }
-function hiloHoleResult(hs) {
-  if (hs.h1==null||hs.h2==null||hs.a1==null||hs.a2==null) return null;
-  const buzzLow=Math.min(hs.h1,hs.h2), owlsLow=Math.min(hs.a1,hs.a2);
-  const buzzHi=Math.max(hs.h1,hs.h2), owlsHi=Math.max(hs.a1,hs.a2);
-  const lowPt = buzzLow<owlsLow?"buzz":buzzLow>owlsLow?"owls":"push";
-  const hiPt  = buzzHi<owlsHi?"buzz":buzzHi>owlsHi?"owls":"push";
-  return {lowPt, hiPt,
-    buzzPts:(lowPt==="buzz"?1:lowPt==="push"?0.5:0)+(hiPt==="buzz"?1:hiPt==="push"?0.5:0),
-    owlsPts:(lowPt==="owls"?1:lowPt==="push"?0.5:0)+(hiPt==="owls"?1:hiPt==="push"?0.5:0)};
-}
-function hiloMatchStatus(scores, mid) {
-  const ms=scores[mid]||{}; let bp=0,op=0,played=0;
-  for(let h=1;h<=18;h++){
-    const hs=ms[h];
-    if(!hs||hs.h1==null||hs.h2==null||hs.a1==null||hs.a2==null)break;
-    played++;
-    const r=hiloHoleResult(hs);
-    if(r){bp+=r.buzzPts;op+=r.owlsPts;}
-  }
-  const maxPts=18*2, remaining=(18-played)*2;
-  const lead=bp-op, leader=lead>0?"home":lead<0?"away":null;
-  if(played===0)return{st:"ns",played,bp,op,lead,leader};
-  if(played===18)return{st:"done",played,bp,op,lead,leader};
-  // clinched if lead > remaining
-  if(Math.abs(lead)>remaining)return{st:"done",played,bp,op,lead,leader};
-  return{st:"live",played,bp,op,lead,leader};
-}
-function hiloTotals(scores,byRound){
-  let b=0,o=0;
-  for(const r of ROUNDS){
-    if(!r.hilo)continue;
-    for(const m of byRound[r.id]){
-      const mst=hiloMatchStatus(scores,m.id);
-      b+=mst.bp||0; o+=mst.op||0;
-    }
-  }
-  return{b,o};
-}
-
 function scoreStyle(score,par){
   if(score==null)return{};
   const d=score-par;
-  const base={width:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto",fontSize:12,fontWeight:700,color:"#1a1a1a",flexShrink:0};
-  if(d<=-2)return{...base,borderRadius:"50%",border:"1.5px solid #555",boxShadow:"0 0 0 3px #fff, 0 0 0 4.5px #555"};
+  const base={width:24,height:24,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto",fontSize:11,fontWeight:700,color:"#1a1a1a",flexShrink:0,boxSizing:"border-box"};
+  if(d<=-2)return{...base,borderRadius:"50%",border:"1.5px solid #555",outline:"2px solid #555",outlineOffset:"2px"};
   if(d===-1)return{...base,borderRadius:"50%",border:"1.5px solid #555"};
   if(d===0)return{...base};
   if(d===1)return{...base,border:"1.5px solid #555"};
-  return{...base,border:"1.5px solid #555",boxShadow:"0 0 0 2px #fff, 0 0 0 3.5px #555"};
+  return{...base,border:"1.5px solid #555",outline:"2px solid #555",outlineOffset:"2px"};
 }
 
 const pill=(type)=>{
@@ -253,7 +253,7 @@ function MatchupPicker({match,matchIdx,roundId,pps,updateMatchup,allMatches}){
   );
 }
 
-
+// ── HI/LO SCORECARD ──────────────────────────────────────────────────────────
 function HiLoScoreCard({activeRound,match,teeIdx,scores,saveScore,onBack,setView}){
   const [editHole,setEditHole]=useState(null);
   const [eH1,setEH1]=useState(""); const [eH2,setEH2]=useState("");
@@ -267,46 +267,34 @@ function HiLoScoreCard({activeRound,match,teeIdx,scores,saveScore,onBack,setView
   const b9=course.bp.map((par,i)=>({hole:i+10,par,yds:tee.b[i]}));
   const all=[...f9,...b9];
   const mst=hiloMatchStatus(scores,match.id);
+  const hN=nl(match.home),aN=nl(match.away);
 
-  // Running totals
-  const bar={hw:mst.bp||0, aw:mst.op||0};
+  function openHole(h){const hs=ms[h]||{};setEH1(hs.h1!=null?hs.h1:"");setEH2(hs.h2!=null?hs.h2:"");setEA1(hs.a1!=null?hs.a1:"");setEA2(hs.a2!=null?hs.a2:"");setEditHole(h);}
+  function commit(){saveScore(match.id,editHole,{h1:eH1===""?null:parseInt(eH1),h2:eH2===""?null:parseInt(eH2),a1:eA1===""?null:parseInt(eA1),a2:eA2===""?null:parseInt(eA2)});setSaved(editHole);setEditHole(null);setTimeout(()=>setSaved(null),800);}
 
-  function openHole(h){
-    const hs=ms[h]||{};
-    setEH1(hs.h1!=null?hs.h1:""); setEH2(hs.h2!=null?hs.h2:"");
-    setEA1(hs.a1!=null?hs.a1:""); setEA2(hs.a2!=null?hs.a2:"");
-    setEditHole(h);
-  }
-  function commit(){
-    const hole={
-      h1:eH1===""?null:parseInt(eH1), h2:eH2===""?null:parseInt(eH2),
-      a1:eA1===""?null:parseInt(eA1), a2:eA2===""?null:parseInt(eA2),
-    };
-    saveScore(match.id,editHole,hole);
-    setSaved(editHole); setEditHole(null);
-    setTimeout(()=>setSaved(null),800);
-  }
-
-  const hdrBg="#f0ece6",subBg="#e8e2da",totBg="#ddd6cc",cellBg="#fff";
+  const hdrBg="#f0ece6",subBg="#e8e2da",totBg="#ddd6cc";
   const cb=(bg,h,w,extra={})=>({height:h,width:w,background:bg,display:"flex",alignItems:"center",justifyContent:"center",...extra});
 
-  function HoleResult({hole}){
-    const hs=ms[hole]||{};
+  function HoleCol({h}){
+    const hs=ms[h.hole]||{};
     const r=hiloHoleResult(hs);
-    if(!r)return<div style={cb(cellBg,20,44,{fontSize:7,color:"#ccc"})}>—</div>;
-    const lowColor=r.lowPt==="buzz"?"#b83050":r.lowPt==="owls"?"#9b7010":"#999";
-    const hiColor=r.hiPt==="buzz"?"#b83050":r.hiPt==="owls"?"#9b7010":"#999";
+    const isSaved=saved===h.hole;
+    const buzzWins=r&&r.buzzWinsHole;
+    const owlsWins=r&&r.owlsWinsHole;
+    const buzzBg=buzzWins?"#fff0f3":isSaved?"#e8f5e8":"#fffcfa";
+    const owlsBg=owlsWins?"#fff8e8":"#fafaf8";
     return(
-      <div style={cb(cellBg,20,44,{flexDirection:"row",gap:2})}>
-        <span style={{fontSize:7,fontWeight:700,color:lowColor}}>L</span>
-        <span style={{fontSize:7,color:"#ccc"}}>|</span>
-        <span style={{fontSize:7,fontWeight:700,color:hiColor}}>H</span>
+      <div style={{display:"flex",flexDirection:"column"}} onClick={()=>openHole(h.hole)}>
+        <div style={cb(isSaved?"#e8f5e8":"#fff",26,38,{fontSize:10,fontWeight:800,color:"#5a7a5a",cursor:"pointer"})}>{h.hole}</div>
+        <div style={cb("#fff",22,38,{fontSize:9,color:"#555"})}>{h.par}</div>
+        <div style={cb("#fff",20,38,{fontSize:8,color:"#666"})}>{h.yds}</div>
+        <div style={cb(buzzBg,32,38,{cursor:"pointer"})}>{hs.h1!=null?<div style={scoreStyle(hs.h1,h.par)}>{hs.h1}</div>:<span style={{color:"#ccc",fontSize:11}}>—</span>}</div>
+        <div style={{...cb(buzzBg,32,38,{cursor:"pointer"}),borderBottom:"2px solid #e0d8d0"}}>{hs.h2!=null?<div style={scoreStyle(hs.h2,h.par)}>{hs.h2}</div>:<span style={{color:"#ccc",fontSize:11}}>—</span>}</div>
+        <div style={cb(owlsBg,32,38,{cursor:"pointer"})}>{hs.a1!=null?<div style={scoreStyle(hs.a1,h.par)}>{hs.a1}</div>:<span style={{color:"#ccc",fontSize:11}}>—</span>}</div>
+        <div style={cb(owlsBg,32,38,{cursor:"pointer"})}>{hs.a2!=null?<div style={scoreStyle(hs.a2,h.par)}>{hs.a2}</div>:<span style={{color:"#ccc",fontSize:11}}>—</span>}</div>
       </div>
     );
   }
-
-  const totalHoles=18, maxPts=totalHoles*2;
-  const bPct=Math.min(100,(bar.hw/maxPts)*100), aPct=Math.min(100,(bar.aw/maxPts)*100);
 
   return(
     <div style={{fontFamily:"'DM Sans',sans-serif",background:"#f5f0eb",color:"#1a1a1a",minHeight:"100vh",maxWidth:480,margin:"0 auto",paddingBottom:84}}>
@@ -328,21 +316,28 @@ function HiLoScoreCard({activeRound,match,teeIdx,scores,saveScore,onBack,setView
             <div style={{fontSize:12,color:"#333",fontWeight:600}}>{aN1} / {aN2}</div>
           </div>
         </div>
+        {mst.st==="done"&&(
+          <div style={{marginTop:8,display:"inline-block",padding:"6px 20px",background:"#1a1a1a",borderRadius:8}}>
+            <span style={{color:"#fff",fontFamily:"'Bebas Neue',sans-serif",fontSize:16,letterSpacing:2}}>
+              {mst.matchH===1?hN+" WIN":mst.matchA===1?aN+" WIN":"HALVED"}
+            </span>
+          </div>
+        )}
       </div>
 
       <div style={{background:"#fff",borderBottom:"1.5px solid #e8e0d8",padding:"12px 16px"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-          <span style={{fontSize:11,fontWeight:700,color:"#333"}}>Points</span>
+          <span style={{fontSize:11,fontWeight:700,color:"#333"}}>Hi/Lo Points</span>
           <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:22,letterSpacing:1}}>
-            <span style={{color:"#b83050"}}>{bar.hw}</span>
+            <span style={{color:"#b83050"}}>{mst.bp}</span>
             <span style={{color:"#aaa"}}> – </span>
-            <span style={{color:"#9b7010"}}>{bar.aw}</span>
+            <span style={{color:"#9b7010"}}>{mst.op}</span>
           </span>
-          <span style={{fontSize:10,color:"#999"}}>{maxPts} total pts</span>
+          <span style={{fontSize:10,color:"#999"}}>36 total pts</span>
         </div>
         <div style={{height:8,background:"#f0ece6",borderRadius:4,display:"flex",overflow:"hidden"}}>
-          {bar.hw+bar.aw>0
-            ?<><div style={{height:"100%",background:"#b83050",width:((bar.hw/(bar.hw+bar.aw))*100)+"%"}}/><div style={{height:"100%",background:"#9b7010",width:((bar.aw/(bar.hw+bar.aw))*100)+"%"}}/></>
+          {mst.bp+mst.op>0
+            ?<><div style={{height:"100%",background:"#b83050",width:((mst.bp/(mst.bp+mst.op))*100)+"%"}}/><div style={{height:"100%",background:"#9b7010",width:((mst.op/(mst.bp+mst.op))*100)+"%"}}/></>
             :<div style={{width:"100%",height:"100%",background:"#f0ece6"}}/>}
         </div>
       </div>
@@ -350,79 +345,42 @@ function HiLoScoreCard({activeRound,match,teeIdx,scores,saveScore,onBack,setView
       <div style={{overflowX:"auto",padding:"10px 6px"}}>
         <div style={{display:"flex",gap:1,background:"#e0d8d0",borderRadius:10,overflow:"hidden",minWidth:"max-content"}}>
           <div style={{display:"flex",flexDirection:"column"}}>
-            <div style={cb(hdrBg,24,36,{fontSize:9,fontWeight:800,color:"#555"})}>#</div>
-            <div style={cb(hdrBg,22,36,{fontSize:9,fontWeight:800,color:"#555"})}>Par</div>
-            <div style={cb(hdrBg,20,36,{fontSize:8,fontWeight:800,color:"#777"})}>Yds</div>
-            <div style={cb(hdrBg,34,36,{fontSize:8,fontWeight:800,color:"#b83050"})}>{hN1}</div>
-            <div style={{...cb(hdrBg,34,36,{fontSize:8,fontWeight:800,color:"#b83050"}),borderBottom:"2px solid #d0c8c0"}}>{hN2}</div>
-            <div style={cb(hdrBg,34,36,{fontSize:8,fontWeight:800,color:"#9b7010"})}>{aN1}</div>
-            <div style={cb(hdrBg,34,36,{fontSize:8,fontWeight:800,color:"#9b7010"})}>{aN2}</div>
-            <div style={cb(hdrBg,20,44,{fontSize:7,fontWeight:800,color:"#555"})}>Lo|Hi</div>
+            <div style={cb(hdrBg,26,38,{fontSize:9,fontWeight:800,color:"#555"})}>#</div>
+            <div style={cb(hdrBg,22,38,{fontSize:9,fontWeight:800,color:"#555"})}>Par</div>
+            <div style={cb(hdrBg,20,38,{fontSize:8,fontWeight:800,color:"#777"})}>Yds</div>
+            <div style={cb(hdrBg,32,38,{fontSize:8,fontWeight:800,color:"#b83050"})}>{hN1}</div>
+            <div style={{...cb(hdrBg,32,38,{fontSize:8,fontWeight:800,color:"#b83050"}),borderBottom:"2px solid #d0c8c0"}}>{hN2}</div>
+            <div style={cb(hdrBg,32,38,{fontSize:8,fontWeight:800,color:"#9b7010"})}>{aN1}</div>
+            <div style={cb(hdrBg,32,38,{fontSize:8,fontWeight:800,color:"#9b7010"})}>{aN2}</div>
           </div>
-          {f9.map(h=>{
-            const hs=ms[h.hole]||{};
-            const isSaved=saved===h.hole;
-            const r=hiloHoleResult(hs);
-            const bgH=isSaved?"#e8f5e8":cellBg;
-            return(
-              <div key={h.hole} style={{display:"flex",flexDirection:"column"}} onClick={()=>openHole(h.hole)}>
-                <div style={cb(bgH,24,36,{fontSize:10,fontWeight:800,color:"#5a7a5a",cursor:"pointer"})}>{h.hole}</div>
-                <div style={cb(cellBg,22,36,{fontSize:10,color:"#555"})}>{h.par}</div>
-                <div style={cb(cellBg,20,36,{fontSize:9,color:"#666"})}>{h.yds}</div>
-                <div style={cb("#fffcfa",34,36,{fontSize:13,fontWeight:700,cursor:"pointer"})}>{hs.h1!=null?<div style={scoreStyle(hs.h1,h.par)}>{hs.h1}</div>:<span style={{color:"#ccc"}}>—</span>}</div>
-                <div style={{...cb("#fffcfa",34,36,{fontSize:13,fontWeight:700,cursor:"pointer"}),borderBottom:"2px solid #e0d8d0"}}>{hs.h2!=null?<div style={scoreStyle(hs.h2,h.par)}>{hs.h2}</div>:<span style={{color:"#ccc"}}>—</span>}</div>
-                <div style={cb("#fafaf8",34,36,{fontSize:13,fontWeight:700,cursor:"pointer"})}>{hs.a1!=null?<div style={scoreStyle(hs.a1,h.par)}>{hs.a1}</div>:<span style={{color:"#ccc"}}>—</span>}</div>
-                <div style={cb("#fafaf8",34,36,{fontSize:13,fontWeight:700,cursor:"pointer"})}>{hs.a2!=null?<div style={scoreStyle(hs.a2,h.par)}>{hs.a2}</div>:<span style={{color:"#ccc"}}>—</span>}</div>
-                <HoleResult hole={h.hole}/>
-              </div>
-            );
-          })}
+          {f9.map(h=><HoleCol key={h.hole} h={h}/>)}
           <div style={{display:"flex",flexDirection:"column"}}>
-            <div style={cb(subBg,24,36,{fontSize:9,fontWeight:800,color:"#5a7a5a"})}>OUT</div>
-            <div style={cb(subBg,22,36,{fontSize:9,fontWeight:700,color:"#555"})}>{f9.reduce((s,h)=>s+h.par,0)}</div>
-            <div style={cb(subBg,20,36,{fontSize:8,fontWeight:700,color:"#666"})}>{f9.reduce((s,h)=>s+h.yds,0)}</div>
-            <div style={cb(subBg,34,36,{fontSize:12,fontWeight:800})}>{f9.reduce((s,h)=>s+(ms[h.hole]?.h1||0),0)||"—"}</div>
-            <div style={{...cb(subBg,34,36,{fontSize:12,fontWeight:800}),borderBottom:"2px solid #d0c8c0"}}>{f9.reduce((s,h)=>s+(ms[h.hole]?.h2||0),0)||"—"}</div>
-            <div style={cb(subBg,34,36,{fontSize:12,fontWeight:800})}>{f9.reduce((s,h)=>s+(ms[h.hole]?.a1||0),0)||"—"}</div>
-            <div style={cb(subBg,34,36,{fontSize:12,fontWeight:800})}>{f9.reduce((s,h)=>s+(ms[h.hole]?.a2||0),0)||"—"}</div>
-            <div style={cb(subBg,20,44,{})}/>
+            <div style={cb(subBg,26,38,{fontSize:9,fontWeight:800,color:"#5a7a5a"})}>OUT</div>
+            <div style={cb(subBg,22,38,{fontSize:9,fontWeight:700,color:"#555"})}>{f9.reduce((s,h)=>s+h.par,0)}</div>
+            <div style={cb(subBg,20,38,{fontSize:8,fontWeight:700,color:"#666"})}>{f9.reduce((s,h)=>s+h.yds,0)}</div>
+            <div style={cb(subBg,32,38,{fontSize:12,fontWeight:800})}>{f9.reduce((s,h)=>s+(ms[h.hole]?.h1||0),0)||"—"}</div>
+            <div style={{...cb(subBg,32,38,{fontSize:12,fontWeight:800}),borderBottom:"2px solid #d0c8c0"}}>{f9.reduce((s,h)=>s+(ms[h.hole]?.h2||0),0)||"—"}</div>
+            <div style={cb(subBg,32,38,{fontSize:12,fontWeight:800})}>{f9.reduce((s,h)=>s+(ms[h.hole]?.a1||0),0)||"—"}</div>
+            <div style={cb(subBg,32,38,{fontSize:12,fontWeight:800})}>{f9.reduce((s,h)=>s+(ms[h.hole]?.a2||0),0)||"—"}</div>
           </div>
-          {b9.map(h=>{
-            const hs=ms[h.hole]||{};
-            const isSaved=saved===h.hole;
-            const bgH=isSaved?"#e8f5e8":cellBg;
-            return(
-              <div key={h.hole} style={{display:"flex",flexDirection:"column"}} onClick={()=>openHole(h.hole)}>
-                <div style={cb(bgH,24,36,{fontSize:10,fontWeight:800,color:"#5a7a5a",cursor:"pointer"})}>{h.hole}</div>
-                <div style={cb(cellBg,22,36,{fontSize:10,color:"#555"})}>{h.par}</div>
-                <div style={cb(cellBg,20,36,{fontSize:9,color:"#666"})}>{h.yds}</div>
-                <div style={cb("#fffcfa",34,36,{fontSize:13,fontWeight:700,cursor:"pointer"})}>{hs.h1!=null?<div style={scoreStyle(hs.h1,h.par)}>{hs.h1}</div>:<span style={{color:"#ccc"}}>—</span>}</div>
-                <div style={{...cb("#fffcfa",34,36,{fontSize:13,fontWeight:700,cursor:"pointer"}),borderBottom:"2px solid #e0d8d0"}}>{hs.h2!=null?<div style={scoreStyle(hs.h2,h.par)}>{hs.h2}</div>:<span style={{color:"#ccc"}}>—</span>}</div>
-                <div style={cb("#fafaf8",34,36,{fontSize:13,fontWeight:700,cursor:"pointer"})}>{hs.a1!=null?<div style={scoreStyle(hs.a1,h.par)}>{hs.a1}</div>:<span style={{color:"#ccc"}}>—</span>}</div>
-                <div style={cb("#fafaf8",34,36,{fontSize:13,fontWeight:700,cursor:"pointer"})}>{hs.a2!=null?<div style={scoreStyle(hs.a2,h.par)}>{hs.a2}</div>:<span style={{color:"#ccc"}}>—</span>}</div>
-                <HoleResult hole={h.hole}/>
-              </div>
-            );
-          })}
+          {b9.map(h=><HoleCol key={h.hole} h={h}/>)}
           <div style={{display:"flex",flexDirection:"column"}}>
-            <div style={cb(subBg,24,36,{fontSize:9,fontWeight:800,color:"#5a7a5a"})}>IN</div>
-            <div style={cb(subBg,22,36,{fontSize:9,fontWeight:700,color:"#555"})}>{b9.reduce((s,h)=>s+h.par,0)}</div>
-            <div style={cb(subBg,20,36,{fontSize:8,fontWeight:700,color:"#666"})}>{b9.reduce((s,h)=>s+h.yds,0)}</div>
-            <div style={cb(subBg,34,36,{fontSize:12,fontWeight:800})}>{b9.reduce((s,h)=>s+(ms[h.hole]?.h1||0),0)||"—"}</div>
-            <div style={{...cb(subBg,34,36,{fontSize:12,fontWeight:800}),borderBottom:"2px solid #d0c8c0"}}>{b9.reduce((s,h)=>s+(ms[h.hole]?.h2||0),0)||"—"}</div>
-            <div style={cb(subBg,34,36,{fontSize:12,fontWeight:800})}>{b9.reduce((s,h)=>s+(ms[h.hole]?.a1||0),0)||"—"}</div>
-            <div style={cb(subBg,34,36,{fontSize:12,fontWeight:800})}>{b9.reduce((s,h)=>s+(ms[h.hole]?.a2||0),0)||"—"}</div>
-            <div style={cb(subBg,20,44,{})}/>
+            <div style={cb(subBg,26,38,{fontSize:9,fontWeight:800,color:"#5a7a5a"})}>IN</div>
+            <div style={cb(subBg,22,38,{fontSize:9,fontWeight:700,color:"#555"})}>{b9.reduce((s,h)=>s+h.par,0)}</div>
+            <div style={cb(subBg,20,38,{fontSize:8,fontWeight:700,color:"#666"})}>{b9.reduce((s,h)=>s+h.yds,0)}</div>
+            <div style={cb(subBg,32,38,{fontSize:12,fontWeight:800})}>{b9.reduce((s,h)=>s+(ms[h.hole]?.h1||0),0)||"—"}</div>
+            <div style={{...cb(subBg,32,38,{fontSize:12,fontWeight:800}),borderBottom:"2px solid #d0c8c0"}}>{b9.reduce((s,h)=>s+(ms[h.hole]?.h2||0),0)||"—"}</div>
+            <div style={cb(subBg,32,38,{fontSize:12,fontWeight:800})}>{b9.reduce((s,h)=>s+(ms[h.hole]?.a1||0),0)||"—"}</div>
+            <div style={cb(subBg,32,38,{fontSize:12,fontWeight:800})}>{b9.reduce((s,h)=>s+(ms[h.hole]?.a2||0),0)||"—"}</div>
           </div>
           <div style={{display:"flex",flexDirection:"column"}}>
-            <div style={cb(totBg,24,36,{fontSize:9,fontWeight:800,color:"#5a7a5a"})}>TOT</div>
-            <div style={cb(totBg,22,36,{fontSize:9,fontWeight:800,color:"#555"})}>{course.par}</div>
-            <div style={cb(totBg,20,36,{fontSize:8,fontWeight:800,color:"#666"})}>{tee.total.toLocaleString()}</div>
-            <div style={cb(totBg,30,36,{fontSize:12,fontWeight:800})}>{all.reduce((s,h)=>s+(ms[h.hole]?.h1||0),0)||"—"}</div>
-            <div style={cb(totBg,30,36,{fontSize:12,fontWeight:800})}>{all.reduce((s,h)=>s+(ms[h.hole]?.h2||0),0)||"—"}</div>
-            <div style={cb(totBg,30,36,{fontSize:12,fontWeight:800})}>{all.reduce((s,h)=>s+(ms[h.hole]?.a1||0),0)||"—"}</div>
-            <div style={cb(totBg,30,36,{fontSize:12,fontWeight:800})}>{all.reduce((s,h)=>s+(ms[h.hole]?.a2||0),0)||"—"}</div>
-            <div style={cb(totBg,20,44,{})}/>
+            <div style={cb(totBg,26,38,{fontSize:9,fontWeight:800,color:"#5a7a5a"})}>TOT</div>
+            <div style={cb(totBg,22,38,{fontSize:9,fontWeight:800,color:"#555"})}>{course.par}</div>
+            <div style={cb(totBg,20,38,{fontSize:8,fontWeight:800,color:"#666"})}>{tee.total.toLocaleString()}</div>
+            <div style={cb(totBg,32,38,{fontSize:12,fontWeight:800})}>{all.reduce((s,h)=>s+(ms[h.hole]?.h1||0),0)||"—"}</div>
+            <div style={{...cb(totBg,32,38,{fontSize:12,fontWeight:800}),borderBottom:"2px solid #ccc8c0"}}>{all.reduce((s,h)=>s+(ms[h.hole]?.h2||0),0)||"—"}</div>
+            <div style={cb(totBg,32,38,{fontSize:12,fontWeight:800})}>{all.reduce((s,h)=>s+(ms[h.hole]?.a1||0),0)||"—"}</div>
+            <div style={cb(totBg,32,38,{fontSize:12,fontWeight:800})}>{all.reduce((s,h)=>s+(ms[h.hole]?.a2||0),0)||"—"}</div>
           </div>
         </div>
       </div>
@@ -465,6 +423,7 @@ function HiLoScoreCard({activeRound,match,teeIdx,scores,saveScore,onBack,setView
   );
 }
 
+// ── REGULAR SCORECARD (singles + scramble) ────────────────────────────────────
 function ScoreCard({activeRound,match,teeIdx,scores,saveScore,onBack,setView}){
   const [editHole,setEditHole]=useState(null);
   const [eHome,setEHome]=useState("");
@@ -476,11 +435,10 @@ function ScoreCard({activeRound,match,teeIdx,scores,saveScore,onBack,setView}){
   const f9=course.fp.map((par,i)=>({hole:i+1,par,yds:tee.f[i]}));
   const b9=course.bp.map((par,i)=>({hole:i+10,par,yds:tee.b[i]}));
   const all=[...f9,...b9];
-  const isDone=mst.st==="done";
   const bar=(()=>{let hw=0,aw=0;for(let h=1;h<=18;h++){const s=ms[h];if(!s||s.home==null||s.away==null)continue;if(s.home<s.away)hw++;else if(s.away<s.home)aw++;}return{hw,aw,diff:hw-aw};})();
   function openHole(h){const s=ms[h]||{};setEHome(s.home!=null?s.home:"");setEAway(s.away!=null?s.away:"");setEditHole(h);}
   function commit(){saveScore(match.id,editHole,eHome,eAway);setSaved(editHole);setEditHole(null);setTimeout(()=>setSaved(null),800);}
-  const hdrBg="#f0ece6",subBg="#e8e2da",totBg="#ddd6cc",cellBg="#fff",buzzBg="#fffcfa",owlsBg="#fafaf8";
+  const hdrBg="#f0ece6",subBg="#e8e2da",totBg="#ddd6cc";
   const sColor=stColor(mst);
   const f9out=sumS("home",f9,ms)||"—",f9outA=sumS("away",f9,ms)||"—";
   const b9in=sumS("home",b9,ms)||"—",b9inA=sumS("away",b9,ms)||"—";
@@ -491,10 +449,10 @@ function ScoreCard({activeRound,match,teeIdx,scores,saveScore,onBack,setView}){
     <div style={{fontFamily:"'DM Sans',sans-serif",background:"#f5f0eb",color:"#1a1a1a",minHeight:"100vh",maxWidth:480,margin:"0 auto",paddingBottom:84}}>
       <PHdr title="Scorecard" onBack={onBack}/>
       <div style={{padding:"12px 16px",borderBottom:"1.5px solid #e8e0d8",textAlign:"center",background:"#fff"}}>
-        <div style={{fontSize:10,color:"#5a7a5a",textTransform:"uppercase",letterSpacing:1.5,fontWeight:700}}>{course.fullName}</div>
+        <div style={{fontSize:10,color:"#5a7a5a",textTransform:"uppercase",letterSpacing:1.5,fontWeight:700}}>{course.fullName}{rDef.type==="scramble"?" · Scramble":""}</div>
         <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:5,marginTop:4}}>
           <div style={{width:10,height:10,borderRadius:"50%",background:tee.color,border:"1.5px solid #888",flexShrink:0}}/>
-          <span style={{fontSize:11,color:"#444",fontWeight:600}}>{tee.label} tees · {tee.total.toLocaleString()} yds · Par {course.par}</span>
+          <span style={{fontSize:11,color:"#444",fontWeight:600}}>{tee.label} · {tee.total.toLocaleString()} yds · Par {course.par}</span>
         </div>
         <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginTop:6}}>
           <span style={{fontSize:14,fontWeight:700,color:"#b83050"}}>{hN}</span>
@@ -502,14 +460,13 @@ function ScoreCard({activeRound,match,teeIdx,scores,saveScore,onBack,setView}){
           <span style={{fontSize:14,fontWeight:700,color:"#9b7010"}}>{aN}</span>
         </div>
         <div style={{fontSize:13,fontWeight:700,marginTop:6,color:sColor}}>{stLabel(mst,hN,aN)}</div>
-        {isDone&&(
+        {mst.st==="done"&&(
           <div style={{marginTop:8,display:"inline-block",padding:"6px 20px",background:"#1a1a1a",borderRadius:8}}>
             <span style={{color:"#fff",fontFamily:"'Bebas Neue',sans-serif",fontSize:16,letterSpacing:2}}>
               {mst.leader?(mst.leader==="home"?hN:aN)+" WIN":"HALVED"}
             </span>
           </div>
         )}
-        
       </div>
 
       <div style={{background:"#fff",borderBottom:"1.5px solid #e8e0d8",padding:"12px 16px"}}>
@@ -532,76 +489,68 @@ function ScoreCard({activeRound,match,teeIdx,scores,saveScore,onBack,setView}){
       <div style={{overflowX:"auto",padding:"10px 6px"}}>
         <div style={{display:"flex",gap:1,background:"#e0d8d0",borderRadius:10,overflow:"hidden",minWidth:"max-content"}}>
           <div style={{display:"flex",flexDirection:"column"}}>
-            {[["#",hdrBg,28,36],["Par",hdrBg,26,36],["Yds",hdrBg,22,36]].map(([t,bg,h,w])=>(
+            {[["#",hdrBg,26,36],["Par",hdrBg,22,36],["Yds",hdrBg,20,36]].map(([t,bg,h,w])=>(
               <div key={t} style={cb(bg,h,w,{fontSize:9,fontWeight:800,color:"#555"})}>{t}</div>
             ))}
-            <div style={cb(hdrBg,28,36,{fontSize:9,fontWeight:800,color:"#b83050"})}>Buzz</div>
-            <div style={cb(hdrBg,28,36,{fontSize:9,fontWeight:800,color:"#9b7010"})}>Owls</div>
-            <div style={cb(hdrBg,22,40,{})}/>
+            <div style={cb(hdrBg,26,36,{fontSize:9,fontWeight:800,color:"#b83050"})}>Buzz</div>
+            <div style={cb(hdrBg,26,36,{fontSize:9,fontWeight:800,color:"#9b7010"})}>Owls</div>
+            <div style={cb(hdrBg,20,40,{})}/>
           </div>
           {f9.map(h=>{
             const hs=ms[h.hole]||{};
             const isSaved=saved===h.hole;
-            const hSS=scoreStyle(hs.home!=null?hs.home:null,h.par);
-            const aSS=scoreStyle(hs.away!=null?hs.away:null,h.par);
+            const homeWins=hs.home!=null&&hs.away!=null&&hs.home<hs.away;
+            const awayWins=hs.home!=null&&hs.away!=null&&hs.away<hs.home;
             return(
               <div key={h.hole} style={{display:"flex",flexDirection:"column"}} onClick={()=>openHole(h.hole)}>
-                <div style={cb(isSaved?"#e8f5e8":cellBg,28,36,{fontSize:10,fontWeight:800,color:"#5a7a5a",cursor:"pointer"})}>{h.hole}</div>
-                <div style={cb(cellBg,26,36,{fontSize:10,color:"#555"})}>{h.par}</div>
-                <div style={cb(cellBg,22,36,{fontSize:9,color:"#666"})}>{h.yds}</div>
-                <div style={cb(buzzBg,36,36,{cursor:"pointer"})}>
-                  {hs.home!=null?<div style={hSS}>{hs.home}</div>:<span style={{color:"#ccc",fontSize:13}}>—</span>}
-                </div>
-                <div style={cb(owlsBg,36,36,{cursor:"pointer"})}>
-                  {hs.away!=null?<div style={aSS}>{hs.away}</div>:<span style={{color:"#ccc",fontSize:13}}>—</span>}
-                </div>
-                <div style={cb(cellBg,22,40,{fontSize:8,color:"#555"})}>{holeMP(h.hole,ms)}</div>
+                <div style={cb(isSaved?"#e8f5e8":"#fff",26,36,{fontSize:10,fontWeight:800,color:"#5a7a5a",cursor:"pointer"})}>{h.hole}</div>
+                <div style={cb("#fff",22,36,{fontSize:10,color:"#555"})}>{h.par}</div>
+                <div style={cb("#fff",20,36,{fontSize:9,color:"#666"})}>{h.yds}</div>
+                <div style={cb(homeWins?"#fff0f3":"#fffcfa",34,36,{cursor:"pointer"})}>{hs.home!=null?<div style={scoreStyle(hs.home,h.par)}>{hs.home}</div>:<span style={{color:"#ccc",fontSize:11}}>—</span>}</div>
+                <div style={cb(awayWins?"#fff8e8":"#fafaf8",34,36,{cursor:"pointer"})}>{hs.away!=null?<div style={scoreStyle(hs.away,h.par)}>{hs.away}</div>:<span style={{color:"#ccc",fontSize:11}}>—</span>}</div>
+                <div style={cb("#fff",20,40,{fontSize:8,color:"#555"})}>{holeMP(h.hole,ms)}</div>
               </div>
             );
           })}
           <div style={{display:"flex",flexDirection:"column"}}>
-            <div style={cb(subBg,28,36,{fontSize:10,fontWeight:800,color:"#5a7a5a"})}>OUT</div>
-            <div style={cb(subBg,26,36,{fontSize:10,fontWeight:700,color:"#555"})}>{f9.reduce((s,h)=>s+h.par,0)}</div>
-            <div style={cb(subBg,22,36,{fontSize:9,fontWeight:700,color:"#666"})}>{f9.reduce((s,h)=>s+h.yds,0)}</div>
-            <div style={cb(subBg,36,36,{fontSize:14,fontWeight:800})}>{f9out}</div>
-            <div style={cb(subBg,36,36,{fontSize:14,fontWeight:800})}>{f9outA}</div>
-            <div style={cb(subBg,22,40,{})}/>
+            <div style={cb(subBg,26,36,{fontSize:9,fontWeight:800,color:"#5a7a5a"})}>OUT</div>
+            <div style={cb(subBg,22,36,{fontSize:9,fontWeight:700,color:"#555"})}>{f9.reduce((s,h)=>s+h.par,0)}</div>
+            <div style={cb(subBg,20,36,{fontSize:8,fontWeight:700,color:"#666"})}>{f9.reduce((s,h)=>s+h.yds,0)}</div>
+            <div style={cb(subBg,34,36,{fontSize:13,fontWeight:800})}>{f9out}</div>
+            <div style={cb(subBg,34,36,{fontSize:13,fontWeight:800})}>{f9outA}</div>
+            <div style={cb(subBg,20,40,{})}/>
           </div>
           {b9.map(h=>{
             const hs=ms[h.hole]||{};
             const isSaved=saved===h.hole;
-            const hSS=scoreStyle(hs.home!=null?hs.home:null,h.par);
-            const aSS=scoreStyle(hs.away!=null?hs.away:null,h.par);
+            const homeWins=hs.home!=null&&hs.away!=null&&hs.home<hs.away;
+            const awayWins=hs.home!=null&&hs.away!=null&&hs.away<hs.home;
             return(
               <div key={h.hole} style={{display:"flex",flexDirection:"column"}} onClick={()=>openHole(h.hole)}>
-                <div style={cb(isSaved?"#e8f5e8":cellBg,28,36,{fontSize:10,fontWeight:800,color:"#5a7a5a",cursor:"pointer"})}>{h.hole}</div>
-                <div style={cb(cellBg,26,36,{fontSize:10,color:"#555"})}>{h.par}</div>
-                <div style={cb(cellBg,22,36,{fontSize:9,color:"#666"})}>{h.yds}</div>
-                <div style={cb(buzzBg,36,36,{cursor:"pointer"})}>
-                  {hs.home!=null?<div style={hSS}>{hs.home}</div>:<span style={{color:"#ccc",fontSize:13}}>—</span>}
-                </div>
-                <div style={cb(owlsBg,36,36,{cursor:"pointer"})}>
-                  {hs.away!=null?<div style={aSS}>{hs.away}</div>:<span style={{color:"#ccc",fontSize:13}}>—</span>}
-                </div>
-                <div style={cb(cellBg,22,40,{fontSize:8,color:"#555"})}>{holeMP(h.hole,ms)}</div>
+                <div style={cb(isSaved?"#e8f5e8":"#fff",26,36,{fontSize:10,fontWeight:800,color:"#5a7a5a",cursor:"pointer"})}>{h.hole}</div>
+                <div style={cb("#fff",22,36,{fontSize:10,color:"#555"})}>{h.par}</div>
+                <div style={cb("#fff",20,36,{fontSize:9,color:"#666"})}>{h.yds}</div>
+                <div style={cb(homeWins?"#fff0f3":"#fffcfa",34,36,{cursor:"pointer"})}>{hs.home!=null?<div style={scoreStyle(hs.home,h.par)}>{hs.home}</div>:<span style={{color:"#ccc",fontSize:11}}>—</span>}</div>
+                <div style={cb(awayWins?"#fff8e8":"#fafaf8",34,36,{cursor:"pointer"})}>{hs.away!=null?<div style={scoreStyle(hs.away,h.par)}>{hs.away}</div>:<span style={{color:"#ccc",fontSize:11}}>—</span>}</div>
+                <div style={cb("#fff",20,40,{fontSize:8,color:"#555"})}>{holeMP(h.hole,ms)}</div>
               </div>
             );
           })}
           <div style={{display:"flex",flexDirection:"column"}}>
-            <div style={cb(subBg,28,36,{fontSize:10,fontWeight:800,color:"#5a7a5a"})}>IN</div>
-            <div style={cb(subBg,26,36,{fontSize:10,fontWeight:700,color:"#555"})}>{b9.reduce((s,h)=>s+h.par,0)}</div>
-            <div style={cb(subBg,22,36,{fontSize:9,fontWeight:700,color:"#666"})}>{b9.reduce((s,h)=>s+h.yds,0)}</div>
-            <div style={cb(subBg,36,36,{fontSize:14,fontWeight:800})}>{b9in}</div>
-            <div style={cb(subBg,36,36,{fontSize:14,fontWeight:800})}>{b9inA}</div>
-            <div style={cb(subBg,22,40,{})}/>
+            <div style={cb(subBg,26,36,{fontSize:9,fontWeight:800,color:"#5a7a5a"})}>IN</div>
+            <div style={cb(subBg,22,36,{fontSize:9,fontWeight:700,color:"#555"})}>{b9.reduce((s,h)=>s+h.par,0)}</div>
+            <div style={cb(subBg,20,36,{fontSize:8,fontWeight:700,color:"#666"})}>{b9.reduce((s,h)=>s+h.yds,0)}</div>
+            <div style={cb(subBg,34,36,{fontSize:13,fontWeight:800})}>{b9in}</div>
+            <div style={cb(subBg,34,36,{fontSize:13,fontWeight:800})}>{b9inA}</div>
+            <div style={cb(subBg,20,40,{})}/>
           </div>
           <div style={{display:"flex",flexDirection:"column"}}>
-            <div style={cb(totBg,28,36,{fontSize:10,fontWeight:800,color:"#5a7a5a"})}>TOT</div>
-            <div style={cb(totBg,26,36,{fontSize:10,fontWeight:800,color:"#555"})}>{course.par}</div>
-            <div style={cb(totBg,22,36,{fontSize:9,fontWeight:800,color:"#666"})}>{tee.total.toLocaleString()}</div>
-            <div style={cb(totBg,36,36,{fontSize:14,fontWeight:800})}>{tot}</div>
-            <div style={cb(totBg,36,36,{fontSize:14,fontWeight:800})}>{totA}</div>
-            <div style={cb(totBg,22,40,{})}/>
+            <div style={cb(totBg,26,36,{fontSize:9,fontWeight:800,color:"#5a7a5a"})}>TOT</div>
+            <div style={cb(totBg,22,36,{fontSize:9,fontWeight:800,color:"#555"})}>{course.par}</div>
+            <div style={cb(totBg,20,36,{fontSize:8,fontWeight:800,color:"#666"})}>{tee.total.toLocaleString()}</div>
+            <div style={cb(totBg,34,36,{fontSize:13,fontWeight:800})}>{tot}</div>
+            <div style={cb(totBg,34,36,{fontSize:13,fontWeight:800})}>{totA}</div>
+            <div style={cb(totBg,20,40,{})}/>
           </div>
         </div>
       </div>
@@ -637,6 +586,7 @@ function ScoreCard({activeRound,match,teeIdx,scores,saveScore,onBack,setView}){
   );
 }
 
+// ── OVERALL VIEW ─────────────────────────────────────────────────────────────
 function OverallView({byRound,scores,setView,setActiveRound,setActiveMatch}){
   const pts=totals(scores,byRound);
   const [collapsed,setCollapsed]=useState({r1:false,r2:false,r3:false});
@@ -662,7 +612,7 @@ function OverallView({byRound,scores,setView,setActiveRound,setActiveMatch}){
                 <img src={img} width={44} height={44} style={{borderRadius:"50%",objectFit:"cover"}} alt=""/>
               </div>
               {ROUNDS.map(r=>{
-                const rt=roundTotals(scores,byRound[r.id],r.hilo);
+                const rt=roundTotals(scores,byRound[r.id],r.type);
                 const val=side==="home"?rt.b:rt.o;
                 return <div key={r.id} style={{flex:1,textAlign:"center",fontFamily:"'Bebas Neue',sans-serif",fontSize:28,color:val>0?color:"#444"}}>{val||0}</div>;
               })}
@@ -674,7 +624,7 @@ function OverallView({byRound,scores,setView,setActiveRound,setActiveMatch}){
 
       <div style={{padding:"0 14px"}}>
         {ROUNDS.map(r=>{
-          const rm=byRound[r.id],rt=roundTotals(scores,rm);
+          const rm=byRound[r.id],rt=roundTotals(scores,rm,r.type);
           return(
             <div key={r.id} style={{marginTop:16,background:"#fff",borderRadius:14,border:"1.5px solid #e8e0d8",overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
               <div onClick={()=>toggleRound(r.id)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 16px",borderBottom:collapsed[r.id]?"none":"1px solid #f0ece6",background:"#fafaf8",cursor:"pointer"}}>
@@ -692,36 +642,41 @@ function OverallView({byRound,scores,setView,setActiveRound,setActiveMatch}){
                 </div>
               </div>
               {!collapsed[r.id]&&rm.map((m,i)=>{
-                const mst=matchStatus(scores,m.id),res=mResult(mst),hN=nl(m.home),aN=nl(m.away),rdy=ready(m);
-                const sColor=stColor(mst);
-                const resultStr=mst.st==="done"?(mst.leader?(mst.leader==="home"?hN:aN)+" "+Math.abs(mst.lead)+"&"+(18-mst.played):"Halved"):null;
-                const liveStr=mst.st==="live"?(Math.abs(mst.lead)>0?(mst.leader==="home"?hN:aN)+" "+Math.abs(mst.lead)+"UP":"AS"):null;
+                const hN=nl(m.home),aN=nl(m.away),rdy=ready(m);
+                let mst,res,sColor,resultStr,liveStr;
+                if(r.type==="hilo"){
+                  mst=hiloMatchStatus(scores,m.id);
+                  res=hiloResult(scores,m.id);
+                  sColor=mst.bp>mst.op?"#b83050":mst.op>mst.bp?"#9b7010":"#333";
+                  resultStr=mst.st==="done"?(mst.matchH===1?hN+" WIN":mst.matchA===1?aN+" WIN":"HALVED"):null;
+                  liveStr=mst.st==="live"?("Buzz "+mst.bp+" – Owls "+mst.op):null;
+                }else{
+                  mst=matchStatus(scores,m.id);
+                  res=mResult(mst);
+                  sColor=stColor(mst);
+                  resultStr=mst.st==="done"?(mst.leader?(mst.leader==="home"?hN:aN)+" "+Math.abs(mst.lead)+"&"+(18-mst.played):"Halved"):null;
+                  liveStr=mst.st==="live"?(Math.abs(mst.lead)>0?(mst.leader==="home"?hN:aN)+" "+Math.abs(mst.lead)+"UP":"AS"):null;
+                }
                 return(
                   <div key={m.id} style={{padding:"12px 16px",borderBottom:i<rm.length-1?"1px solid #f5f2ee":"none",cursor:"pointer",display:"flex",alignItems:"center",gap:10}} onClick={()=>{setActiveRound(r.id);setActiveMatch(m.id);setView("scorecard");}}>
                     <div style={{flex:1,textAlign:"center"}}>
                       {rdy?(
                         <>
-                          <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
-                            <span style={{fontWeight:700,fontSize:13,color:"#b83050"}}>{hN}</span>
-                          </div>
+                          <div style={{fontWeight:700,fontSize:13,color:"#b83050"}}>{hN}</div>
                           <div style={{fontSize:10,color:"#999",margin:"2px 0",fontWeight:600}}>vs</div>
-                          <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
-                            <span style={{fontWeight:700,fontSize:13,color:"#9b7010"}}>{aN}</span>
-                          </div>
+                          <div style={{fontWeight:700,fontSize:13,color:"#9b7010"}}>{aN}</div>
                         </>
-                      ):(
-                        <div style={{fontSize:11,color:"#bbb"}}>Lineup not set</div>
-                      )}
+                      ):<div style={{fontSize:11,color:"#bbb"}}>Lineup not set</div>}
                     </div>
-                    <div style={{textAlign:"right",minWidth:70}}>
+                    <div style={{textAlign:"right",minWidth:80}}>
                       {resultStr&&<div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:18,color:sColor,letterSpacing:0.5}}>{resultStr}</div>}
-                      {liveStr&&<div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:16,color:sColor,letterSpacing:0.5}}>{liveStr}</div>}
-                      {mst.st==="ns"&&rdy&&<div style={{fontSize:10,color:"#bbb"}}>Not started</div>}
+                      {liveStr&&!resultStr&&<div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,color:sColor}}>{liveStr}</div>}
                       {res&&<div style={{fontSize:10,color:"#888",marginTop:2}}>
                         <span style={{color:res.h>0?"#3a7a3a":"#ccc",fontWeight:700}}>{res.h}pt</span>
                         <span style={{color:"#ccc"}}> – </span>
                         <span style={{color:res.a>0?"#3a7a3a":"#ccc",fontWeight:700}}>{res.a}pt</span>
                       </div>}
+                      {mst.st==="ns"&&rdy&&<div style={{fontSize:10,color:"#bbb"}}>Not started</div>}
                     </div>
                   </div>
                 );
@@ -736,6 +691,7 @@ function OverallView({byRound,scores,setView,setActiveRound,setActiveMatch}){
   );
 }
 
+// ── MAIN APP ──────────────────────────────────────────────────────────────────
 export default function App(){
   const [authed,setAuthed]=useState(false);
   const [pin,setPin]=useState("");
@@ -760,12 +716,6 @@ export default function App(){
     try{localStorage.setItem("benders2026",JSON.stringify({byRound,teeByRound,scores}));}catch(e){}
   },[byRound,teeByRound,scores]);
 
-  if(!checked)return(
-    <div style={{background:"#1a1a1a",minHeight:"100vh",width:"100%",display:"flex",alignItems:"center",justifyContent:"center"}}>
-      <img src={BENDERS_LOGO} width={120} height={120} style={{objectFit:"contain",opacity:0.8}} alt=""/>
-    </div>
-  );
-
   function tryPin(p){
     if(p.toUpperCase()==="BENDERS"){
       try{localStorage.setItem("benders_auth","yes");}catch(e){}
@@ -777,37 +727,41 @@ export default function App(){
     }
   }
 
-  if(!authed){
-    return(
-      <div style={{fontFamily:"'DM Sans',sans-serif",background:"#1a1a1a",minHeight:"100vh",width:"100%",maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16,padding:"32px 24px",boxSizing:"border-box",opacity:fading?0:1,transition:"opacity 0.4s"}}>
-        <img src={BENDERS_LOGO} width={110} height={110} style={{objectFit:"contain"}} alt=""/>
-        <div style={{textAlign:"center"}}>
-          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:44,letterSpacing:6,color:"#fff",lineHeight:1}}>BENDERS</div>
-          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:44,letterSpacing:6,color:"#9b7010",lineHeight:1}}>2026</div>
-        </div>
-        <div style={{fontSize:11,color:"#555",letterSpacing:2,textTransform:"uppercase"}}>Gamble Sands · June 12–14</div>
-        <div style={{width:"100%",maxWidth:280,display:"flex",flexDirection:"column",gap:10,marginTop:8}}>
-          <input type="text" placeholder="Password" value={pin}
-            onChange={e=>setPin(e.target.value)}
-            onKeyDown={e=>e.key==="Enter"&&tryPin(pin)}
-            style={{width:"100%",padding:"14px 16px",fontSize:16,fontFamily:"'DM Sans',sans-serif",
-              border:shake?"2px solid #b83050":"2px solid #333",borderRadius:12,
-              background:"#2a2a2a",color:"#fff",outline:"none",textAlign:"center",
-              transform:shake?"translateX(6px)":"none",transition:"border-color 0.2s"}}
-            autoCapitalize="none"/>
-          <button onClick={()=>tryPin(pin)}
-            style={{width:"100%",padding:"11px",background:"#b83050",border:"none",borderRadius:12,color:"#fff",fontFamily:"'Bebas Neue',sans-serif",fontSize:17,letterSpacing:3,cursor:"pointer"}}>
-            ENTER
-          </button>
-        </div>
-        <div style={{display:"flex",alignItems:"center",gap:16,marginTop:4}}>
-          <img src={BUZZ_IMG} width={40} height={40} style={{borderRadius:"50%",objectFit:"cover"}} alt=""/>
-          <span style={{color:"#333",fontSize:16}}>vs</span>
-          <img src={OWLS_IMG} width={40} height={40} style={{borderRadius:"50%",objectFit:"cover"}} alt=""/>
-        </div>
+  if(!checked)return(
+    <div style={{background:"#1a1a1a",minHeight:"100vh",width:"100%",display:"flex",alignItems:"center",justifyContent:"center"}}>
+      <img src={BENDERS_LOGO} width={120} height={120} style={{objectFit:"contain",opacity:0.8}} alt=""/>
+    </div>
+  );
+
+  if(!authed)return(
+    <div style={{fontFamily:"'DM Sans',sans-serif",background:"#1a1a1a",minHeight:"100vh",width:"100%",maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16,padding:"32px 24px",boxSizing:"border-box",opacity:fading?0:1,transition:"opacity 0.4s"}}>
+      <img src={BENDERS_LOGO} width={110} height={110} style={{objectFit:"contain"}} alt=""/>
+      <div style={{textAlign:"center"}}>
+        <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:44,letterSpacing:6,color:"#fff",lineHeight:1}}>BENDERS</div>
+        <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:44,letterSpacing:6,color:"#9b7010",lineHeight:1}}>2026</div>
       </div>
-    );
-  }
+      <div style={{fontSize:11,color:"#555",letterSpacing:2,textTransform:"uppercase"}}>Gamble Sands · June 12–14</div>
+      <div style={{width:"100%",maxWidth:280,display:"flex",flexDirection:"column",gap:10,marginTop:8}}>
+        <input type="text" placeholder="Password" value={pin}
+          onChange={e=>setPin(e.target.value)}
+          onKeyDown={e=>e.key==="Enter"&&tryPin(pin)}
+          style={{width:"100%",padding:"14px 16px",fontSize:16,fontFamily:"'DM Sans',sans-serif",
+            border:shake?"2px solid #b83050":"2px solid #333",borderRadius:12,
+            background:"#2a2a2a",color:"#fff",outline:"none",textAlign:"center",
+            transform:shake?"translateX(6px)":"none",transition:"border-color 0.2s"}}
+          autoCapitalize="none"/>
+        <button onClick={()=>tryPin(pin)}
+          style={{width:"100%",padding:"11px",background:"#b83050",border:"none",borderRadius:12,color:"#fff",fontFamily:"'Bebas Neue',sans-serif",fontSize:17,letterSpacing:3,cursor:"pointer"}}>
+          ENTER
+        </button>
+      </div>
+      <div style={{display:"flex",alignItems:"center",gap:16,marginTop:4}}>
+        <img src={BUZZ_IMG} width={40} height={40} style={{borderRadius:"50%",objectFit:"cover"}} alt=""/>
+        <span style={{color:"#333",fontSize:16}}>vs</span>
+        <img src={OWLS_IMG} width={40} height={40} style={{borderRadius:"50%",objectFit:"cover"}} alt=""/>
+      </div>
+    </div>
+  );
 
   function saveScore(mid,hole,homeOrObj,away){
     setScores(prev=>({...prev,[mid]:{...(prev[mid]||{}),[hole]:
@@ -828,26 +782,34 @@ export default function App(){
   if(view==="scorecard"&&activeRound&&activeMatch){
     const match=byRound[activeRound].find(m=>m.id===activeMatch);
     const rDef=ROUNDS.find(r=>r.id===activeRound);
-    if(rDef.hilo){
-      return <HiLoScoreCard activeRound={activeRound} match={match} teeIdx={teeByRound[activeRound]} scores={scores} saveScore={saveScore} onBack={()=>setView("round")} setView={setView}/>;
-    }
+    if(rDef.type==="hilo")return <HiLoScoreCard activeRound={activeRound} match={match} teeIdx={teeByRound[activeRound]} scores={scores} saveScore={saveScore} onBack={()=>setView("round")} setView={setView}/>;
     return <ScoreCard activeRound={activeRound} match={match} teeIdx={teeByRound[activeRound]} scores={scores} saveScore={saveScore} onBack={()=>setView("round")} setView={setView}/>;
   }
 
   if(view==="round"&&activeRound){
     const rDef=ROUNDS.find(r=>r.id===activeRound),course=COURSES[rDef.course];
     const teeIdx=teeByRound[activeRound],tee=course.tees[teeIdx],rm=byRound[activeRound];
-    const pts=totals(scores,byRound);
     return(
       <div style={{fontFamily:"'DM Sans',sans-serif",background:"#f5f0eb",color:"#1a1a1a",minHeight:"100vh",maxWidth:480,margin:"0 auto",paddingBottom:84}}>
         <PHdr title={rDef.label} onBack={()=>setView("matches")}/>
         <div style={{background:"#fff",borderBottom:"1.5px solid #e8e0d8",padding:"14px 16px"}}>
-          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:15,letterSpacing:1,color:"#555",marginBottom:2}}>{course.name} Course · {rDef.date} · {rDef.fmt}</div>
+          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:15,letterSpacing:1,color:"#555",marginBottom:8}}>{course.name} Course · {rDef.date} · {rDef.fmt}</div>
           <TeePicker course={course} teeIdx={teeIdx} setTeeIdx={i=>setTeeByRound(prev=>({...prev,[activeRound]:i}))}/>
         </div>
         {rm.map((m,idx)=>{
-          const mst=matchStatus(scores,m.id),res=mResult(mst),rdy=ready(m),hN=nl(m.home),aN=nl(m.away);
-          const sColor=stColor(mst);
+          const rdy=ready(m),hN=nl(m.home),aN=nl(m.away);
+          let mst,res,sColor,statusTxt;
+          if(rDef.type==="hilo"){
+            mst=hiloMatchStatus(scores,m.id);
+            res=hiloResult(scores,m.id);
+            sColor=mst.bp>mst.op?"#b83050":mst.op>mst.bp?"#9b7010":"#333";
+            statusTxt=mst.st==="done"?(mst.matchH===1?hN+" WIN":mst.matchA===1?aN+" WIN":"HALVED"):mst.st==="live"?"Buzz "+mst.bp+" – Owls "+mst.op:null;
+          }else{
+            mst=matchStatus(scores,m.id);
+            res=mResult(mst);
+            sColor=stColor(mst);
+            statusTxt=mst.st!=="ns"?stLabel(mst,hN,aN):null;
+          }
           return(
             <div key={m.id} style={{background:"#fff",border:"1.5px solid #e8e0d8",borderRadius:14,padding:14,margin:"10px 14px 0",boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
@@ -859,13 +821,13 @@ export default function App(){
               {rdy&&(
                 <div onClick={()=>{setActiveMatch(m.id);setView("scorecard");}}>
                   <div style={{height:1,background:"#f0ece6",margin:"12px 0"}}/>
-                  {mst.st!=="ns"&&<div style={{fontSize:12,fontWeight:600,color:sColor,marginTop:8,marginBottom:4}}>{stLabel(mst,hN,aN)}</div>}
-                  {res&&<div style={{fontSize:11,marginBottom:4}}>
+                  {statusTxt&&<div style={{fontSize:12,fontWeight:600,color:sColor,marginBottom:6}}>{statusTxt}</div>}
+                  {res&&<div style={{fontSize:11,marginBottom:6}}>
                     <span style={{color:res.h>0?"#3a7a3a":"#ccc",fontWeight:700}}>{res.h}pt</span>
                     <span style={{color:"#aaa"}}> – </span>
                     <span style={{color:res.a>0?"#3a7a3a":"#ccc",fontWeight:700}}>{res.a}pt</span>
                   </div>}
-                  <button style={{marginTop:8,width:"100%",padding:"10px 0",background:"none",border:"1.5px solid #1a1a1a",borderRadius:8,cursor:"pointer"}}>
+                  <button style={{width:"100%",padding:"10px 0",background:"none",border:"1.5px solid #1a1a1a",borderRadius:8,cursor:"pointer"}}>
                     <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:16,letterSpacing:3,color:"#1a1a1a"}}>SCORECARD</span>
                   </button>
                 </div>
@@ -878,17 +840,15 @@ export default function App(){
     );
   }
 
-  const pts=totals(scores,byRound);
-  const bPct=Math.min(100,(pts.b/12)*100),oPct=Math.min(100,(pts.o/12)*100);
   return(
     <div style={{fontFamily:"'DM Sans',sans-serif",background:"#f5f0eb",color:"#1a1a1a",minHeight:"100vh",maxWidth:480,margin:"0 auto",paddingBottom:84}}>
       <div style={{padding:"16px 14px 0",display:"flex",flexDirection:"column",gap:12}}>
         {ROUNDS.map(r=>{
           const rm=byRound[r.id],course=COURSES[r.course],tee=course.tees[teeByRound[r.id]];
-          const done=rm.filter(m=>matchStatus(scores,m.id).st==="done").length;
-          const live=rm.filter(m=>matchStatus(scores,m.id).st==="live").length;
+          const done=rm.filter(m=>{const mst=r.type==="hilo"?hiloMatchStatus(scores,m.id):matchStatus(scores,m.id);return mst.st==="done";}).length;
+          const live=rm.filter(m=>{const mst=r.type==="hilo"?hiloMatchStatus(scores,m.id):matchStatus(scores,m.id);return mst.st==="live";}).length;
           const set=rm.filter(m=>ready(m)).length;
-          let rb=0,ro=0;if(r.hilo){rm.forEach(m=>{const mst=hiloMatchStatus(scores,m.id);rb+=mst.bp||0;ro+=mst.op||0;});}else{rm.forEach(m=>{const res=mResult(matchStatus(scores,m.id));if(res){rb+=res.h;ro+=res.a;}});}
+          const rt=roundTotals(scores,rm,r.type);
           return(
             <div key={r.id} style={{background:"#fff",border:"1.5px solid #e8e0d8",borderRadius:16,overflow:"hidden",cursor:"pointer",boxShadow:"0 2px 8px rgba(0,0,0,0.06)"}} onClick={()=>{setActiveRound(r.id);setView("round");}}>
               <div style={{padding:"18px 18px 16px"}}>
@@ -904,7 +864,7 @@ export default function App(){
                   </div>
                   <div style={{textAlign:"right"}}>
                     <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:28,letterSpacing:2,marginBottom:6}}>
-                      <span style={{color:"#b83050"}}>{rb}</span><span style={{color:"#ccc",margin:"0 3px"}}>–</span><span style={{color:"#9b7010"}}>{ro}</span>
+                      <span style={{color:"#b83050"}}>{rt.b}</span><span style={{color:"#ccc",margin:"0 3px"}}>–</span><span style={{color:"#9b7010"}}>{rt.o}</span>
                     </div>
                     {done===rm.length&&set===rm.length&&rm.length>0?<span style={pill("done")}>Final</span>
                       :live>0?<span style={pill("live")}>● Live</span>
