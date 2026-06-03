@@ -16,12 +16,12 @@ import {
 // so it keeps working exactly as before while you finish setup.
 // ===========================================================================
 const firebaseConfig = {
-  apiKey: "PASTE_HERE",
-  authDomain: "PASTE_HERE",
-  projectId: "PASTE_HERE",
-  storageBucket: "PASTE_HERE",
-  messagingSenderId: "PASTE_HERE",
-  appId: "PASTE_HERE",
+  apiKey: "AIzaSyDssFao71N82evwJV_xvKv--j3DFBzoP0g",
+  authDomain: "benders-2026.firebaseapp.com",
+  projectId: "benders-2026",
+  storageBucket: "benders-2026.firebasestorage.app",
+  messagingSenderId: "383597762109",
+  appId: "1:383597762109:web:504342021332db7a713c54",
 };
 
 export const firebaseReady =
