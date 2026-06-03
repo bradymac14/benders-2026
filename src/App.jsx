@@ -430,7 +430,7 @@ function ScorecardView(props) {
   var round = ROUNDS.filter(function(r) { return r.id === rid; })[0];
   var match = (matchesByRound[rid] || []).filter(function(m) { return m.id === mid; })[0];
   var course = COURSES[round ? round.course : "scarecrow"];
-  var teeIdx = tees[rid] || 2;
+  var teeIdx = tees[rid] != null ? tees[rid] : 2;
   var tee = course ? course.tees[teeIdx] : null;
 
   var editHoleState = useState(null);
@@ -1034,7 +1034,7 @@ function MatchesTab(props) {
     var r = activeRound;
     var ms = matchesByRound[r.id] || [];
     var course = COURSES[r.course];
-    var teeIdx = tees[r.id] || 2;
+    var teeIdx = tees[r.id] != null ? tees[r.id] : 2;
     var pts = rdPts(r, ms, scores);
     var anyScrs = ms.some(function(m) { return hasScores(r, m, scores); });
     var allDone = ms.length > 0 && ms.every(function(m) { return isDone(r, m, scores); });
