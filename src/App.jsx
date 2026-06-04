@@ -626,7 +626,9 @@ function ScorecardView(props) {
       var won = false;
       if (round.type === "hilo") {
         won = shouldDot(key, sc, sv);
-      } else {
+      } else if (round.type !== "scramble") {
+        // Singles only: dot the lower score. Scramble is stroke play, so a
+        // per-hole "winner" dot is misleading (the 18-hole total decides it).
         var other = sv ? (isAway ? sv.home : sv.away) : null;
         won = sc != null && other != null && sc < other;
       }
