@@ -127,6 +127,33 @@ function mpStatus(scores, mid) {
   return {leader:leader,up:up,status:"live",winner:null,result:up+" UP"};
 }
 
+// Scramble = best-ball stroke play: lower 18-hole total wins. Unlike match play
+// it can't clinch early, so a match is only "complete" once all 18 are entered.
+function strokeStatus(scores, mid) {
+  var ms = scores[mid] || {};
+  var hT = 0, aT = 0, played = 0;
+  for (var h = 1; h <= 18; h++) {
+    var s = ms[h];
+    if (!s || s.home == null || s.away == null) { break; }
+    played++;
+    hT += s.home; aT += s.away;
+  }
+  var diff = aT - hT; // positive => home has fewer strokes (winning)
+  var leader = diff > 0 ? "home" : diff < 0 ? "away" : "as";
+  var up = Math.abs(diff);
+  if (played === 0) { return {leader:"as",up:0,status:"not_started",winner:null,result:"",hT:0,aT:0,played:0}; }
+  if (played === 18) {
+    if (diff === 0) { return {leader:"as",up:0,status:"complete",winner:"halved",result:"",hT:hT,aT:aT,played:18}; }
+    return {leader:leader,up:up,status:"complete",winner:leader,result:"BY "+up,hT:hT,aT:aT,played:18};
+  }
+  if (diff === 0) { return {leader:"as",up:0,status:"live",winner:null,result:"AS",hT:hT,aT:aT,played:played}; }
+  return {leader:leader,up:up,status:"live",winner:null,result:"BY "+up,hT:hT,aT:aT,played:played};
+}
+
+function mpResult(round, scores, mid) {
+  return round.type === "scramble" ? strokeStatus(scores, mid) : mpStatus(scores, mid);
+}
+
 function hiloHole(s) {
   if (!s) { return null; }
   var h1 = s.h1, h2 = s.h2, a1 = s.a1, a2 = s.a2;
@@ -157,12 +184,12 @@ function hiloResult(scores, mid) {
 
 function isDone(round, m, scores) {
   if (round.type === "hilo") { return hiloResult(scores, m.id).complete; }
-  return mpStatus(scores, m.id).status === "complete";
+  return mpResult(round, scores, m.id).status === "complete";
 }
 
 function hasScores(round, m, scores) {
   if (round.type === "hilo") { return hiloResult(scores, m.id).played > 0; }
-  return mpStatus(scores, m.id).status !== "not_started";
+  return mpResult(round, scores, m.id).status !== "not_started";
 }
 
 function rdPts(round, matches, scores) {
@@ -174,7 +201,7 @@ function rdPts(round, matches, scores) {
       else if (r.winner === "owls") { o += 1; }
       else if (r.winner === "halved") { b += 0.5; o += 0.5; }
     } else {
-      var st = mpStatus(scores, m.id);
+      var st = mpResult(round, scores, m.id);
       if (st.winner === "home") { b += 1; }
       else if (st.winner === "away") { o += 1; }
       else if (st.winner === "halved") { b += 0.5; o += 0.5; }
@@ -460,7 +487,7 @@ function ScorecardView(props) {
     return sv && sv.home != null && sv.away != null;
   }).length;
   var isComplete = holesEntered === 18;
-  var matchClinched = round.type === "hilo" ? hiloResult(scores, mid).complete : mpStatus(scores, mid).status === "complete";
+  var matchClinched = round.type === "hilo" ? hiloResult(scores, mid).complete : mpResult(round, scores, mid).status === "complete";
   var locked = isComplete && !editMode;
 
   function openEdit(h) {
@@ -509,6 +536,17 @@ function ScorecardView(props) {
       statusText  = d === 0 ? "TIED" : d > 0 ? "BUZZARDS +" + d : "OWLS +" + Math.abs(d);
       statusColor = d > 0 ? CBUZZ : d < 0 ? COWLS : "#666";
     }
+  } else if (round.type === "scramble") {
+    var ss = strokeStatus(scores, mid);
+    if (ss.status === "complete") {
+      if (ss.winner === "home") { statusText = "BUZZARDS WIN " + ss.result; statusColor = CBUZZ; }
+      else if (ss.winner === "away") { statusText = "OWLS WIN " + ss.result; statusColor = COWLS; }
+      else { statusText = "MATCH TIED"; statusColor = "#666"; }
+    } else if (ss.played > 0) {
+      if (ss.leader === "home") { statusText = "BUZZARDS LEAD " + ss.result; statusColor = CBUZZ; }
+      else if (ss.leader === "away") { statusText = "OWLS LEAD " + ss.result; statusColor = COWLS; }
+      else { statusText = "ALL SQUARE"; statusColor = "#666"; }
+    }
   } else {
     var st = mpStatus(scores, mid);
     var hName = round.pps > 1 ? "BUZZARDS" : getNames(match.home).toUpperCase();
@@ -547,6 +585,14 @@ function ScorecardView(props) {
         if (rv.hiPt === "buzz")  { rb++; } else if (rv.hiPt === "owls")  { ro++; }
       }
       runStatus = "BUZZARDS " + rb + " - OWLS " + ro;
+    } else if (round.type === "scramble") {
+      var shT = 0, saT = 0, splayed = 0;
+      for (var h = 1; h <= end; h++) {
+        var sv3 = hs[h];
+        if (!sv3 || sv3.home == null || sv3.away == null) { break; }
+        shT += sv3.home; saT += sv3.away; splayed++;
+      }
+      runStatus = splayed === 0 ? "" : "BUZZARDS " + shT + " - OWLS " + saT;
     } else {
       var rhw = 0, raw = 0;
       for (var h = 1; h <= end; h++) {
@@ -913,14 +959,14 @@ function OverallTab(props) {
               lblColor = "#22c55e";
             }
           } else {
-            var st2 = mpStatus(scores, m.id);
+            var st2 = mpResult(r, scores, m.id);
             live = st2.status === "live";
             winner = st2.winner;
             var hN = r.pps > 1 ? "BUZZARDS" : getNames(m.home).split(" / ")[0].toUpperCase();
             var aN = r.pps > 1 ? "OWLS" : getNames(m.away).split(" / ")[0].toUpperCase();
             var winV2 = r.pps > 1 ? "WIN" : "WINS";
             if (st2.status === "complete") {
-              if (st2.winner === "halved") { lbl = "HALVED"; lblColor = "#666"; }
+              if (st2.winner === "halved") { lbl = r.type === "scramble" ? "TIED" : "HALVED"; lblColor = "#666"; }
               else if (st2.winner === "home") { lbl = hN + " " + winV2; lblDetail = st2.result; lblColor = CBUZZ; }
               else { lbl = aN + " " + winV2; lblDetail = st2.result; lblColor = COWLS; }
             } else if (live) {
@@ -1091,9 +1137,9 @@ function MatchesTab(props) {
           mLive = true;
         }
       } else {
-        var st = mpStatus(scores, m.id);
+        var st = mpResult(r, scores, m.id);
         if (st.status === "complete") {
-          if (st.winner === "halved") { mStatus = "HALVED"; mColor = "#666"; }
+          if (st.winner === "halved") { mStatus = r.type === "scramble" ? "TIED" : "HALVED"; mColor = "#666"; }
           else if (st.winner === "home") { mStatus = hN + " " + winV; mDetail = st.result; mColor = CBUZZ; }
           else { mStatus = aN + " " + winV; mDetail = st.result; mColor = COWLS; }
         } else if (st.status === "live") {
