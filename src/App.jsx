@@ -493,8 +493,30 @@ function ScorecardView(props) {
   var showOverrideState = useState(false);
   var showOverride = showOverrideState[0];
   var setShowOverride = showOverrideState[1];
+  var pendingState = useState(null);
+  var pending = pendingState[0];
+  var setPending = pendingState[1];
 
   if (!round || !match || !course || !tee) { return null; }
+
+  function computedResult() {
+    if (round.type === "hilo") {
+      var r = hiloResult(scores, mid);
+      return {complete: r.complete, winner: r.winner};
+    }
+    var st = mpResult(round, scores, mid);
+    var w = st.winner === "home" ? "buzz" : st.winner === "away" ? "owls" : st.winner;
+    return {complete: st.status === "complete", winner: w};
+  }
+
+  function chooseOverride(val) {
+    var cr = computedResult();
+    if (val != null && cr.complete && cr.winner && cr.winner !== val) {
+      setPending(val);
+      return;
+    }
+    setOverride(val);
+  }
 
   function setOverride(val) {
     setOverrides(function(p) {
@@ -502,6 +524,7 @@ function ScorecardView(props) {
       if (val == null) { delete n[mid]; } else { n[mid] = val; }
       return n;
     });
+    setPending(null);
     setShowOverride(false);
   }
 
@@ -927,13 +950,25 @@ function ScorecardView(props) {
             <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:20,letterSpacing:2,marginBottom:6}}>SET MATCH WINNER</div>
             <div style={{fontSize:13,color:"#666",marginBottom:18,lineHeight:1.5}}>Manually award this match if the group didn't enter scores. This overrides hole-by-hole scoring and applies the point.</div>
             <div style={{display:"flex",flexDirection:"column",gap:10}}>
-              <button onClick={function() { setOverride("buzz"); }} style={{padding:14,background:manualWinner==="buzz"?CBUZZ:"#fff",color:manualWinner==="buzz"?"#fff":CBUZZ,border:"2px solid "+CBUZZ,borderRadius:12,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",letterSpacing:1}}>BUZZARDS WIN</button>
-              <button onClick={function() { setOverride("owls"); }} style={{padding:14,background:manualWinner==="owls"?COWLS:"#fff",color:manualWinner==="owls"?"#fff":COWLS,border:"2px solid "+COWLS,borderRadius:12,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",letterSpacing:1}}>OWLS WIN</button>
-              <button onClick={function() { setOverride("halved"); }} style={{padding:14,background:manualWinner==="halved"?"#666":"#fff",color:manualWinner==="halved"?"#fff":"#666",border:"2px solid #999",borderRadius:12,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",letterSpacing:1}}>TIE (HALVE)</button>
+              <button onClick={function() { chooseOverride("buzz"); }} style={{padding:14,background:manualWinner==="buzz"?CBUZZ:"#fff",color:manualWinner==="buzz"?"#fff":CBUZZ,border:"2px solid "+CBUZZ,borderRadius:12,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",letterSpacing:1}}>BUZZARDS WIN</button>
+              <button onClick={function() { chooseOverride("owls"); }} style={{padding:14,background:manualWinner==="owls"?COWLS:"#fff",color:manualWinner==="owls"?"#fff":COWLS,border:"2px solid "+COWLS,borderRadius:12,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",letterSpacing:1}}>OWLS WIN</button>
+              <button onClick={function() { chooseOverride("halved"); }} style={{padding:14,background:manualWinner==="halved"?"#666":"#fff",color:manualWinner==="halved"?"#fff":"#666",border:"2px solid #999",borderRadius:12,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",letterSpacing:1}}>TIE (HALVE)</button>
             </div>
             <div style={{display:"flex",gap:10,marginTop:16}}>
               <button onClick={function() { setShowOverride(false); }} style={{flex:1,padding:12,background:"#f5f0eb",color:"#555",border:"none",borderRadius:11,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>CANCEL</button>
               {manualWinner && <button onClick={function() { setOverride(null); }} style={{flex:1,padding:12,background:"#fff0f0",color:"#cc3333",border:"1px solid #ffcccc",borderRadius:11,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>CLEAR</button>}
+            </div>
+          </div>
+        </div>
+      )}
+      {pending && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:210,padding:24}}>
+          <div style={{background:CB,borderRadius:18,padding:24,width:"100%",maxWidth:340,textAlign:"center"}}>
+            <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:20,letterSpacing:2,marginBottom:8,color:"#cc3333"}}>OVERRIDE FINAL RESULT?</div>
+            <div style={{fontSize:13,color:"#666",marginBottom:20,lineHeight:1.5}}>This match is final and the scorecard says <b>{computedResult().winner==="buzz"?"Buzzards win":computedResult().winner==="owls"?"Owls win":"it's tied"}</b>. You're about to award it to <b>{pending==="buzz"?"Buzzards":pending==="owls"?"Owls":"a tie"}</b> instead. The entered scores won't change.</div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={function() { setPending(null); }} style={{flex:1,padding:13,background:"#f5f0eb",color:"#555",border:"none",borderRadius:11,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>CANCEL</button>
+              <button onClick={function() { setOverride(pending); }} style={{flex:1,padding:13,background:"#cc3333",color:"#fff",border:"none",borderRadius:11,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>OVERRIDE</button>
             </div>
           </div>
         </div>
