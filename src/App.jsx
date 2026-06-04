@@ -182,19 +182,32 @@ function hiloResult(scores, mid) {
   return {bPts:bPts, oPts:oPts, played:played, complete:complete, winner:winner};
 }
 
-function isDone(round, m, scores) {
+function ovr(overrides, mid) {
+  return overrides && overrides[mid] ? overrides[mid] : null;
+}
+
+function isDone(round, m, scores, overrides) {
+  if (ovr(overrides, m.id)) { return true; }
   if (round.type === "hilo") { return hiloResult(scores, m.id).complete; }
   return mpResult(round, scores, m.id).status === "complete";
 }
 
-function hasScores(round, m, scores) {
+function hasScores(round, m, scores, overrides) {
+  if (ovr(overrides, m.id)) { return true; }
   if (round.type === "hilo") { return hiloResult(scores, m.id).played > 0; }
   return mpResult(round, scores, m.id).status !== "not_started";
 }
 
-function rdPts(round, matches, scores) {
+function rdPts(round, matches, scores, overrides) {
   var b = 0, o = 0;
   (matches || []).forEach(function(m) {
+    var ov = ovr(overrides, m.id);
+    if (ov) {
+      if (ov === "buzz") { b += 1; }
+      else if (ov === "owls") { o += 1; }
+      else if (ov === "halved") { b += 0.5; o += 0.5; }
+      return;
+    }
     if (round.type === "hilo") {
       var r = hiloResult(scores, m.id);
       if (r.winner === "buzz") { b += 1; }
@@ -449,6 +462,8 @@ function ScorecardView(props) {
   var scores = props.scores;
   var setScores = props.setScores;
   var tees = props.tees;
+  var overrides = props.overrides;
+  var setOverrides = props.setOverrides;
   var setView = props.setView;
 
   var parts = viewKey.split(":");
@@ -475,8 +490,20 @@ function ScorecardView(props) {
   var showResetState = useState(false);
   var showReset = showResetState[0];
   var setShowReset = showResetState[1];
+  var showOverrideState = useState(false);
+  var showOverride = showOverrideState[0];
+  var setShowOverride = showOverrideState[1];
 
   if (!round || !match || !course || !tee) { return null; }
+
+  function setOverride(val) {
+    setOverrides(function(p) {
+      var n = Object.assign({}, p);
+      if (val == null) { delete n[mid]; } else { n[mid] = val; }
+      return n;
+    });
+    setShowOverride(false);
+  }
 
   var hs = scores[mid] || {};
   var allPar = course.fp.concat(course.bp);
@@ -524,9 +551,13 @@ function ScorecardView(props) {
     setShowReset(false);
   }
 
+  var manualWinner = ovr(overrides, mid);
   var statusText = "NOT STARTED";
   var statusColor = "#888";
-  if (round.type === "hilo") {
+  if (manualWinner) {
+    statusText  = manualWinner === "buzz" ? "BUZZARDS WIN (MANUAL)" : manualWinner === "owls" ? "OWLS WIN (MANUAL)" : "TIED (MANUAL)";
+    statusColor = manualWinner === "buzz" ? CBUZZ : manualWinner === "owls" ? COWLS : "#666";
+  } else if (round.type === "hilo") {
     var res = hiloResult(scores, mid);
     if (res.complete) {
       statusText  = res.winner === "buzz" ? "BUZZARDS WIN" : res.winner === "owls" ? "OWLS WIN" : "MATCH HALVED";
@@ -862,6 +893,12 @@ function ScorecardView(props) {
               </button>
             )}
             <button
+              onClick={function() { setShowOverride(true); }}
+              style={{padding:"4px 10px",background:manualWinner?"#1a1a1a":"#eef3fb",color:manualWinner?"#fff":"#3a6ea5",border:manualWinner?"none":"1px solid #cfe0f5",borderRadius:6,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}
+            >
+              {manualWinner ? "MANUAL ✓" : "SET WINNER"}
+            </button>
+            <button
               onClick={function() { setShowReset(true); }}
               style={{padding:"4px 10px",background:"#fff0f0",color:"#cc3333",border:"1px solid #ffcccc",borderRadius:6,fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}
             >
@@ -884,6 +921,23 @@ function ScorecardView(props) {
         {renderNine(9, 18, "BACK")}
         {renderTotals()}
       </div>
+      {showOverride && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200,padding:24}}>
+          <div style={{background:CB,borderRadius:18,padding:24,width:"100%",maxWidth:340,textAlign:"center"}}>
+            <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:20,letterSpacing:2,marginBottom:6}}>SET MATCH WINNER</div>
+            <div style={{fontSize:13,color:"#666",marginBottom:18,lineHeight:1.5}}>Manually award this match if the group didn't enter scores. This overrides hole-by-hole scoring and applies the point.</div>
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              <button onClick={function() { setOverride("buzz"); }} style={{padding:14,background:manualWinner==="buzz"?CBUZZ:"#fff",color:manualWinner==="buzz"?"#fff":CBUZZ,border:"2px solid "+CBUZZ,borderRadius:12,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",letterSpacing:1}}>BUZZARDS WIN</button>
+              <button onClick={function() { setOverride("owls"); }} style={{padding:14,background:manualWinner==="owls"?COWLS:"#fff",color:manualWinner==="owls"?"#fff":COWLS,border:"2px solid "+COWLS,borderRadius:12,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",letterSpacing:1}}>OWLS WIN</button>
+              <button onClick={function() { setOverride("halved"); }} style={{padding:14,background:manualWinner==="halved"?"#666":"#fff",color:manualWinner==="halved"?"#fff":"#666",border:"2px solid #999",borderRadius:12,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",letterSpacing:1}}>TIE (HALVE)</button>
+            </div>
+            <div style={{display:"flex",gap:10,marginTop:16}}>
+              <button onClick={function() { setShowOverride(false); }} style={{flex:1,padding:12,background:"#f5f0eb",color:"#555",border:"none",borderRadius:11,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>CANCEL</button>
+              {manualWinner && <button onClick={function() { setOverride(null); }} style={{flex:1,padding:12,background:"#fff0f0",color:"#cc3333",border:"1px solid #ffcccc",borderRadius:11,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>CLEAR</button>}
+            </div>
+          </div>
+        </div>
+      )}
       {showReset && (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200,padding:24}}>
           <div style={{background:CB,borderRadius:18,padding:24,width:"100%",maxWidth:320,textAlign:"center"}}>
@@ -916,6 +970,7 @@ function ScorecardView(props) {
 function OverallTab(props) {
   var matchesByRound = props.matchesByRound;
   var scores = props.scores;
+  var overrides = props.overrides;
   var setView = props.setView;
   var collapsedState = useState(function() { return calcCollapsed(matchesByRound, scores); });
   var collapsed = collapsedState[0];
@@ -927,13 +982,13 @@ function OverallTab(props) {
 
   var gB = 0, gO = 0;
   ROUNDS.forEach(function(r) {
-    var pts = rdPts(r, matchesByRound[r.id] || [], scores);
+    var pts = rdPts(r, matchesByRound[r.id] || [], scores, overrides);
     gB += pts.b; gO += pts.o;
   });
 
   var roundCards = ROUNDS.map(function(r) {
     var ms = matchesByRound[r.id] || [];
-    var pts = rdPts(r, ms, scores);
+    var pts = rdPts(r, ms, scores, overrides);
     var isColl = collapsed[r.id];
 
     var matchRows = null;
@@ -947,7 +1002,13 @@ function OverallTab(props) {
           var lblColor = "#bbb";
           var winner = null;
           var live = false;
-          if (r.type === "hilo") {
+          var ovM = ovr(overrides, m.id);
+          if (ovM) {
+            winner = ovM === "buzz" ? (r.type === "hilo" ? "buzz" : "home") : ovM === "owls" ? (r.type === "hilo" ? "owls" : "away") : "halved";
+            lbl = ovM === "buzz" ? "BUZZARDS WIN" : ovM === "owls" ? "OWLS WIN" : (r.type === "scramble" ? "TIED" : "HALVED");
+            lblDetail = "MANUAL";
+            lblColor = ovM === "buzz" ? CBUZZ : ovM === "owls" ? COWLS : "#666";
+          } else if (r.type === "hilo") {
             var res = hiloResult(scores, m.id);
             live = !res.complete && res.played > 0;
             winner = res.winner;
@@ -1071,6 +1132,7 @@ function MatchesTab(props) {
   var scores = props.scores;
   var tees = props.tees;
   var setTees = props.setTees;
+  var overrides = props.overrides;
   var setView = props.setView;
   var initRound = props.initialRound ? ROUNDS.filter(function(r) { return r.id === props.initialRound; })[0] || null : null;
   var activeRoundState = useState(initRound);
@@ -1083,9 +1145,9 @@ function MatchesTab(props) {
     var ms = matchesByRound[r.id] || [];
     var course = COURSES[r.course];
     var teeIdx = tees[r.id] != null ? tees[r.id] : 2;
-    var pts = rdPts(r, ms, scores);
-    var anyScrs = ms.some(function(m) { return hasScores(r, m, scores); });
-    var allDone = ms.length > 0 && ms.every(function(m) { return isDone(r, m, scores); });
+    var pts = rdPts(r, ms, scores, overrides);
+    var anyScrs = ms.some(function(m) { return hasScores(r, m, scores, overrides); });
+    var allDone = ms.length > 0 && ms.every(function(m) { return isDone(r, m, scores, overrides); });
     var allSet  = ms.every(function(m) { return m.home.every(Boolean) && m.away.every(Boolean); });
 
     var pill;
@@ -1118,7 +1180,7 @@ function MatchesTab(props) {
 
     var matchRows = ms.map(function(m, idx) {
       var lineupSet = m.home.every(Boolean) && m.away.every(Boolean);
-      var thisHasScores = hasScores(r, m, scores);
+      var thisHasScores = hasScores(r, m, scores, overrides);
       var hN = r.pps > 1 ? "BUZZARDS" : getNames(m.home).split(" / ")[0].toUpperCase();
       var aN = r.pps > 1 ? "OWLS" : getNames(m.away).split(" / ")[0].toUpperCase();
       var winV = r.pps > 1 ? "WIN" : "WINS";
@@ -1126,8 +1188,13 @@ function MatchesTab(props) {
       var mDetail = "";
       var mColor = "#888";
       var mLive = false;
+      var ovM = ovr(overrides, m.id);
 
-      if (r.type === "hilo") {
+      if (ovM) {
+        mStatus = ovM === "buzz" ? hN + " " + winV : ovM === "owls" ? aN + " " + winV : (r.type === "scramble" ? "TIED" : "HALVED");
+        mDetail = "MANUAL";
+        mColor = ovM === "buzz" ? CBUZZ : ovM === "owls" ? COWLS : "#666";
+      } else if (r.type === "hilo") {
         var res = hiloResult(scores, m.id);
         if (res.complete) {
           mStatus = res.winner === "buzz" ? "BUZZARDS WIN" : res.winner === "owls" ? "OWLS WIN" : "HALVED";
@@ -1226,9 +1293,9 @@ function MatchesTab(props) {
   // ── ROUND LIST SCREEN ────────────────────────────────────────────────
   var roundCards = ROUNDS.map(function(r) {
     var ms = matchesByRound[r.id] || [];
-    var pts = rdPts(r, ms, scores);
-    var anyScrs = ms.some(function(m) { return hasScores(r, m, scores); });
-    var allDone = ms.length > 0 && ms.every(function(m) { return isDone(r, m, scores); });
+    var pts = rdPts(r, ms, scores, overrides);
+    var anyScrs = ms.some(function(m) { return hasScores(r, m, scores, overrides); });
+    var allDone = ms.length > 0 && ms.every(function(m) { return isDone(r, m, scores, overrides); });
     var allSet  = ms.every(function(m) { return m.home.every(Boolean) && m.away.every(Boolean); });
 
     var pill;
@@ -1289,6 +1356,9 @@ export default function App() {
   var mbrState = useState(DEMO_MATCHES);
   var matchesByRound = mbrState[0];
   var setMatchesByRound = mbrState[1];
+  var overridesState = useState(function() { return {}; });
+  var overrides = overridesState[0];
+  var setOverrides = overridesState[1];
 
   // --- Firebase sync ------------------------------------------------------
   // Remote snapshots use the RAW setters (state only) so they never trigger a
@@ -1301,6 +1371,7 @@ export default function App() {
       if (!data) { return; }
       if (data.matchesByRound) { setMatchesByRound(data.matchesByRound); }
       if (data.tees) { setTees(data.tees); }
+      if (data.overrides) { setOverrides(data.overrides); }
     });
     var unsubScores = subscribeScores(function (remoteScores) {
       setScores(remoteScores);
@@ -1336,6 +1407,13 @@ export default function App() {
       return next;
     });
   }
+  function syncOverrides(updater) {
+    setOverrides(function (prev) {
+      var next = typeof updater === "function" ? updater(prev) : updater;
+      if (firebaseReady) { writeState({ overrides: next }); }
+      return next;
+    });
+  }
 
   var isScorecard = view.indexOf("scorecard:") === 0;
   var isLineup    = view.indexOf("lineup:") === 0;
@@ -1361,9 +1439,9 @@ export default function App() {
     <div style={{height:"100vh",background:BG,display:"flex",flexDirection:"column",fontFamily:"'DM Sans',sans-serif",maxWidth:480,margin:"0 auto",position:"relative"}}>
       <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
       <div style={{flex:1,minHeight:0,overflowY:"auto",WebkitOverflowScrolling:"touch",paddingTop:"env(safe-area-inset-top)",paddingBottom:isScorecard?16:90}}>
-        {view === "overall"  && <OverallTab  matchesByRound={matchesByRound} scores={scores} setView={setView} />}
-        {isMatches           && <MatchesTab  matchesByRound={matchesByRound} setMatchesByRound={syncMatchesByRound} scores={scores} tees={tees} setTees={syncTees} setView={setView} initialRound={matchesInitRound} />}
-        {isScorecard         && <ScorecardView viewKey={view} matchesByRound={matchesByRound} scores={scores} setScores={syncScores} tees={tees} setView={setView} />}
+        {view === "overall"  && <OverallTab  matchesByRound={matchesByRound} scores={scores} overrides={overrides} setView={setView} />}
+        {isMatches           && <MatchesTab  matchesByRound={matchesByRound} setMatchesByRound={syncMatchesByRound} scores={scores} tees={tees} setTees={syncTees} overrides={overrides} setView={setView} initialRound={matchesInitRound} />}
+        {isScorecard         && <ScorecardView viewKey={view} matchesByRound={matchesByRound} scores={scores} setScores={syncScores} tees={tees} overrides={overrides} setOverrides={syncOverrides} setView={setView} />}
       </div>
       {!isScorecard && (
         <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:"#1a1a1a",display:"flex",zIndex:50,paddingBottom:"env(safe-area-inset-bottom)"}}>
